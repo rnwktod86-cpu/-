@@ -1,0 +1,8 @@
+{
+  "name": "reservation-shared",
+  "version": "1.0.0",
+  "description": "예약접수/자료등록 공용 웹 프로그램",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=22.13" }
+}

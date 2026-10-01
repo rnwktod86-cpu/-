@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>예약접수 / 자료등록</title>
+<style>
+:root{--bg:#f5f6f8;--fg:#1f2430;--card:#fff;--line:#d9dde4;--pri:#2563eb}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e6e8ec;--card:#1d222a;--line:#333a45;--pri:#5b8cff}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.4 system-ui,"Malgun Gothic",sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+h1{font-size:17px;margin:0 auto 0 0}
+input,select,button,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+button{cursor:pointer}button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}button.del{color:#d33}
+main{padding:12px 16px}.wrap{overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;white-space:nowrap}th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{background:var(--bg);position:sticky;top:0}tr.row:hover{background:var(--bg);cursor:pointer}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg);width:min(760px,96vw);padding:16px}
+dialog::backdrop{background:#0006}
+form{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+label{display:flex;flex-direction:column;gap:3px;font-size:12px;opacity:.95}label.full{grid-column:1/-1}
+.actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.meta{font-size:12px;opacity:.7;margin:6px 2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>예약접수 / 자료등록</h1>
+  <input id="user" placeholder="내 이름(상담자)" size="10">
+  <input id="q" type="search" placeholder="전체 검색">
+  <label style="flex-direction:row;align-items:center;gap:4px">예약일 <input id="from" type="date"> ~ <input id="to" type="date"></label>
+  <button id="csv">엑셀(CSV) 내보내기</button>
+  <button class="pri" id="add">+ 새 예약</button>
+</header>
+<main>
+  <div class="meta" id="meta"></div>
+  <div class="wrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+</main>
+<dialog id="dlg"><form id="form" method="dialog"></form></dialog>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let FIELDS=[],rows=[],editing=null;
+const LONG=['memo','test_detail','address'];
+const TYPE={reserved_date:'date',registered_at:'datetime-local'};
+const user=()=>($('#user').value||'').trim();
+$('#user').value=localStorage.getItem('user')||'';
+$('#user').onchange=()=>localStorage.setItem('user',user());
+const api=(p,o={})=>fetch(p,{...o,headers:{'Content-Type':'application/json','X-User':encodeURIComponent(user())}}).then(r=>r.json());
+const qs=()=>new URLSearchParams({q:$('#q').value,from:$('#from').value,to:$('#to').value}).toString();
+
+async function load(){
+  rows=await api('/api/reservations?'+qs());
+  $('#meta').textContent=`총 ${rows.length}건`;
+  $('#tbody').innerHTML=rows.map(r=>`<tr class="row" data-id="${r.id}">${FIELDS.map(([k])=>`<td>${esc(r[k])}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${FIELDS.length}">데이터가 없습니다.</td></tr>`;
+}
+function openForm(r){
+  editing=r;const d=r||{};
+  $('#form').innerHTML=FIELDS.map(([k,l])=>{
+    const v=esc(d[k]);
+    const input=LONG.includes(k)?`<textarea name="${k}" rows="2">${v}</textarea>`:`<input name="${k}" type="${TYPE[k]||'text'}" value="${v}">`;
+    return `<label class="${LONG.includes(k)?'full':''}">${l}${input}</label>`;
+  }).join('')+`<div class="actions">${r?'<button type="button" class="del" id="del">삭제</button>':''}<span style="margin-right:auto" class="meta">${r?`최종수정: ${esc(r.updated_by)} ${esc(r.updated_at)}`:'예약번호를 비우면 자동 생성됩니다'}</span><button type="button" id="cancel">취소</button><button class="pri" type="submit">저장</button></div>`;
+  const dt=$('[name=registered_at]');if(dt&&dt.value)dt.value=dt.value.replace(' ','T');
+  $('#dlg').showModal();
+  $('#cancel').onclick=()=>$('#dlg').close();
+  if(r)$('#del').onclick=async()=>{if(confirm('삭제할까요?')){await api('/api/reservations/'+r.id,{method:'DELETE'});$('#dlg').close();load();}};
+}
+$('#form').onsubmit=async e=>{
+  e.preventDefault();
+  if(!user()){alert('상단에 내 이름을 입력해 주세요.');return;}
+  const body=Object.fromEntries(new FormData(e.target));
+  if(body.registered_at)body.registered_at=body.registered_at.replace('T',' ');
+  await api('/api/reservations'+(editing?'/'+editing.id:''),{method:editing?'PUT':'POST',body:JSON.stringify(body)});
+  $('#dlg').close();load();
+};
+$('#add').onclick=()=>openForm(null);
+$('#tbody').onclick=e=>{const tr=e.target.closest('tr.row');if(tr)openForm(rows.find(r=>r.id==tr.dataset.id));};
+$('#csv').onclick=()=>location.href='/api/export.csv?'+qs();
+['q','from','to'].forEach(i=>$('#'+i).oninput=()=>{clearTimeout(window.t);window.t=setTimeout(load,250);});
+(async()=>{FIELDS=await api('/api/fields');$('#thead').innerHTML='<tr>'+FIELDS.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>';load();setInterval(()=>{if(!$('#dlg').open)load();},15000);})();
+</script>
+</body>
+</html>
