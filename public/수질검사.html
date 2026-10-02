@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수질검사 관리 시스템</title>
+<style>
+  * { box-sizing: border-box; }
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1f2430; --muted:#6b7280;
+    --line:#e3e6ea; --accent:#2f5aa8; --accent-d:#24457f;
+    --ok-bg:#e5f4ea; --ok:#1c7a41; --bad-bg:#fdeaea; --bad:#b3261e;
+    --warn-bg:#fdf3e0; --warn:#9a6a10; --sidebar:#2a3446;
+  }
+  body{ margin:0; font-family:"Malgun Gothic","맑은 고딕",AppleGothic,sans-serif;
+        background:var(--bg); color:var(--ink); font-size:14px; }
+  .app{ display:flex; min-height:100vh; }
+  /* 사이드바 */
+  .side{ width:200px; background:var(--sidebar); color:#dfe3ea; flex-shrink:0; }
+  .brand{ padding:16px 14px; font-size:15px; font-weight:700; border-bottom:1px solid #3a465c;
+          display:flex; align-items:center; gap:8px; }
+  .brand .dot{ width:10px; height:10px; border-radius:50%; background:#4d8de0; }
+  .nav a{ display:block; padding:11px 16px; color:#cbd2de; text-decoration:none; cursor:pointer;
+          border-left:3px solid transparent; font-size:13.5px; }
+  .nav a:hover{ background:#333f54; }
+  .nav a.active{ background:#333f54; border-left-color:#4d8de0; color:#fff; font-weight:600; }
+  /* 메인 */
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .topbar{ background:var(--panel); border-bottom:1px solid var(--line);
+           padding:10px 18px; display:flex; align-items:center; gap:10px; }
+  .topbar h1{ font-size:16px; margin:0; }
+  .content{ padding:18px; }
+  /* 공통 */
+  .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .toolbar .sp{ flex:1; }
+  button{ font-family:inherit; font-size:13px; padding:7px 13px; border:1px solid #c4ccd6;
+          background:#fff; border-radius:5px; cursor:pointer; }
+  button:hover{ background:#f0f3f7; }
+  button.pri{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.pri:hover{ background:var(--accent-d); }
+  button.dgr{ color:var(--bad); border-color:#e6b3b0; }
+  input,select{ font-family:inherit; font-size:13px; padding:6px 8px; border:1px solid #c4ccd6;
+                border-radius:5px; background:#fff; }
+  input:focus,select:focus{ outline:2px solid #bcd2f5; border-color:var(--accent); }
+  label.fld{ display:block; font-size:12px; color:var(--muted); margin:0 0 3px; }
+  table{ width:100%; border-collapse:collapse; background:#fff; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:13px; }
+  th{ background:#eef1f5; color:#40495a; font-weight:600; position:sticky; top:0; }
+  tbody tr:hover{ background:#f6f9fd; }
+  tr.sel{ background:#e8f0fc !important; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:8px; }
+  .pill{ font-size:11.5px; padding:2px 9px; border-radius:20px; display:inline-block; }
+  .p-wait{ background:#eceff3; color:#5b6472; }
+  .p-recv{ background:#e7effb; color:#2f5aa8; }
+  .p-test{ background:var(--warn-bg); color:var(--warn); }
+  .p-done{ background:var(--ok-bg); color:var(--ok); }
+  .p-issued{ background:#eae7fb; color:#5b46b3; }
+  .j-ok{ background:var(--ok-bg); color:var(--ok); }
+  .j-bad{ background:var(--bad-bg); color:var(--bad); }
+  .j-none{ background:#eef0f3; color:#8a919c; }
+  .empty{ padding:40px; text-align:center; color:var(--muted); }
+  /* 모달 */
+  .mask{ position:fixed; inset:0; background:rgba(20,26,38,.45); display:none;
+         align-items:flex-start; justify-content:center; padding:36px 16px; z-index:50; overflow:auto; }
+  .mask.on{ display:flex; }
+  .modal{ background:#fff; border-radius:10px; width:640px; max-width:100%; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  .modal h2{ margin:0; font-size:15px; padding:14px 18px; border-bottom:1px solid var(--line); }
+  .modal .body{ padding:16px 18px; }
+  .modal .foot{ padding:12px 18px; border-top:1px solid var(--line); display:flex; gap:8px; justify-content:flex-end; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  .grid2 .full{ grid-column:1 / -1; }
+  .prevbox{ border:1px solid var(--line); border-radius:6px; padding:8px 10px; max-height:150px; overflow:auto; font-size:12.5px; color:#444; background:#fafbfc; }
+  .stat{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .stat .box{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px; }
+  .stat .box .n{ font-size:26px; font-weight:700; }
+  .stat .box .l{ font-size:12px; color:var(--muted); margin-top:2px; }
+  /* 성적서 인쇄 */
+  .cert{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:26px 30px; max-width:760px; margin:0 auto; }
+  .cert h2.title{ text-align:center; font-size:20px; letter-spacing:8px; margin:0 0 4px; border:none; padding:0; }
+  .cert .org{ text-align:center; color:#555; font-size:13px; margin-bottom:16px; }
+  .cert .meta{ width:100%; font-size:12.5px; margin-bottom:12px; }
+  .cert .meta td{ border:1px solid #b9c0cc; padding:5px 8px; }
+  .cert .meta td.k{ background:#f0f2f5; width:90px; font-weight:600; }
+  .cert table.res th, .cert table.res td{ border:1px solid #b9c0cc; text-align:center; font-size:12.5px; }
+  .cert .sign{ margin-top:20px; text-align:right; font-size:13px; line-height:1.9; }
+  .note{ font-size:12px; color:var(--muted); margin-top:10px; }
+  @media print{
+    .side,.topbar,.toolbar,.no-print{ display:none !important; }
+    body{ background:#fff; } .content{ padding:0; }
+    .cert{ border:none; max-width:100%; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="side">
+    <div class="brand"><span class="dot"></span> 수질검사 관리</div>
+    <div class="nav" id="nav">
+      <a data-v="reception" class="active">접수 관리</a>
+      <a data-v="cert">성적서</a>
+      <a data-v="stat">통계·현황</a>
+      <a data-v="master">기준정보</a>
+    </div>
+  </div>
+  <div class="main">
+    <div class="topbar"><h1 id="viewTitle">접수 관리</h1>
+      <span class="sp" style="flex:1"></span>
+      <span style="font-size:12px;color:var(--muted)" id="dbinfo"></span>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- 접수 등록/수정 모달 -->
+<div class="mask" id="recMask">
+  <div class="modal">
+    <h2 id="recTitle">접수 등록</h2>
+    <div class="body">
+      <div class="grid2">
+        <div><label class="fld">접수일</label><input type="date" id="f_date"></div>
+        <div><label class="fld">검사분야</label><select id="f_field"></select></div>
+        <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
+        <div><label class="fld">검사유형</label><select id="f_type"></select></div>
+        <div class="full"><label class="fld">의뢰인</label><select id="f_client"></select></div>
+        <div><label class="fld">시료명</label><input id="f_sample"></div>
+        <div><label class="fld">채수지</label><input id="f_place"></div>
+        <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
+        <div><label class="fld">접수자</label><input id="f_receiver"></div>
+        <div class="full"><label class="fld">등록될 시험항목 (유형 선택 시 자동)</label>
+          <div class="prevbox" id="f_items">유형을 선택하세요</div></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button onclick="closeRec()">취소</button>
+      <button class="pri" onclick="saveRec()">저장 (접수번호 자동부여)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 결과 등록 모달 -->
+<div class="mask" id="resMask">
+  <div class="modal" style="width:720px">
+    <h2>결과 등록 <span id="resHead" style="font-weight:400;color:var(--muted);font-size:12.5px"></span></h2>
+    <div class="body">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <label class="fld" style="margin:0">검사원</label>
+        <select id="r_insp" style="width:160px"></select>
+        <span class="sp" style="flex:1"></span>
+        <span id="resSummary" style="font-size:12.5px;color:var(--muted)"></span>
+      </div>
+      <table>
+        <thead><tr><th style="width:32%">시험항목</th><th>단위</th><th>기준(저~고)</th><th style="width:22%">측정값</th><th>판정</th></tr></thead>
+        <tbody id="r_rows"></tbody>
+      </table>
+      <div class="note">측정값에 <b>&lt;0.1</b>, <b>불검출</b> 같은 표기도 인식합니다. 기준(저·고) 모두 있으면 범위 판정, 한쪽만 있으면 초과 판정.</div>
+    </div>
+    <div class="foot">
+      <button onclick="closeRes()">닫기</button>
+      <button class="pri" onclick="saveRes()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== 데이터 계층 (localStorage 영속) ===================== */
+const KEY='nbdlab_db_v1';
+function seed(){
+  return {
+    seq:{}, // 연도별 접수 일련번호
+    fields:[{id:1,name:'수질'},{id:2,name:'먹는물'}],
+    purposes:[
+      {id:1,fid:1,name:'정기수질검사'},{id:2,fid:1,name:'지하수정기검사'},
+      {id:3,fid:2,name:'먹는물 정기검사'},{id:4,fid:2,name:'학교 정기수질검사'}],
+    types:[
+      {id:1,fid:2,name:'먹는물(법정)'},{id:2,fid:2,name:'먹는물(참고)'},
+      {id:3,fid:1,name:'지하수질(음용)'},{id:4,fid:1,name:'하천수질'}],
+    items:[
+      {id:1,name:'수소이온농도(pH)',unit:'',lo:'5.8',hi:'8.5'},
+      {id:2,name:'탁도',unit:'NTU',lo:'',hi:'1.0'},
+      {id:3,name:'잔류염소',unit:'mg/L',lo:'',hi:'4.0'},
+      {id:4,name:'질산성질소',unit:'mg/L',lo:'',hi:'10'},
+      {id:5,name:'일반세균',unit:'CFU/mL',lo:'',hi:'100'},
+      {id:6,name:'총대장균군',unit:'',lo:'',hi:'불검출'}],
+    typeItems:{ 1:[1,2,3,4,5,6], 2:[1,2,6], 3:[1,2,4,6], 4:[1,2,4] },
+    inspectors:[
+      {id:1,name:'분석실장'},{id:2,name:'검사원A'},{id:3,name:'검사원B'}],
+    clients:[
+      {id:1,name:'○○아파트 관리사무소'},{id:2,name:'△△학교'},{id:3,name:'□□정수장'}],
+    receptions:[],
+    certificates:[],
+    certSeq:0
+  };
+}
+let DB = load();
+function load(){ try{ const s=localStorage.getItem(KEY); return s?JSON.parse(s):seed(); }catch(e){ return seed(); } }
+function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
+function renderDbInfo(){ document.getElementById('dbinfo').textContent =
+  `접수 ${DB.receptions.length}건 · 성적서 ${DB.certificates.length}건 · 데이터는 이 브라우저에 저장됨`; }
+
+const byId=(arr,id)=>arr.find(x=>x.id===id);
+const today=()=>new Date().toISOString().slice(0,10);
+function nextRecNo(dateStr){ const y=dateStr.slice(0,4); DB.seq[y]=(DB.seq[y]||0)+1;
+  return `${y}-${String(DB.seq[y]).padStart(6,'0')}`; }
+
+/* ===================== 판정 로직 (Delphi/Python 시연과 동일) ===================== */
+function tryNum(s){ let t=(s||'').trim(); if(t&&'<>≤≥'.includes(t[0]))t=t.slice(1).trim();
+  const v=parseFloat(t); return (t!==''&&!isNaN(v)&&isFinite(v))?{ok:true,v}:{ok:false}; }
+function evaluate(meas,lo,hi){
+  const tm=(meas||'').trim(), th=(hi||'').trim();
+  const M=tryNum(meas),L=tryNum(lo),H=tryNum(hi);
+  const below=tm!==''&&'<≤'.includes(tm[0]);
+  if(th==='불검출'||th==='불검출됨'){
+    if(tm==='')return['무판정',null];
+    if(below||tm==='불검출'||(M.ok&&M.v===0))return['적합',0];
+    return['부적합',1];
+  }
+  if(!M.ok)return['무판정',null];
+  if(L.ok&&M.v<L.v)return['부적합',1];
+  if(H.ok&&M.v>H.v)return['부적합',1];
+  if(L.ok||H.ok)return['적합',0];
+  return['무판정',null];
+}
+const statusPill={WAIT:['p-wait','대기'],RECEIVED:['p-recv','접수'],TESTING:['p-test','검사중'],DONE:['p-done','완료'],ISSUED:['p-issued','발급']};
+function pill(st){ const [c,t]=statusPill[st]||['p-wait',st]; return `<span class="pill ${c}">${t}</span>`; }
+function judgePill(j){ const c=j==='적합'?'j-ok':j==='부적합'?'j-bad':'j-none'; return `<span class="pill ${c}">${j||'-'}</span>`; }
+
+/* ===================== 라우팅 ===================== */
+const titles={reception:'접수 관리',cert:'성적서',stat:'통계·현황',master:'기준정보'};
+let view='reception';
+document.getElementById('nav').addEventListener('click',e=>{
+  const a=e.target.closest('a'); if(!a)return;
+  document.querySelectorAll('#nav a').forEach(x=>x.classList.remove('active'));
+  a.classList.add('active'); view=a.dataset.v;
+  document.getElementById('viewTitle').textContent=titles[view];
+  render();
+});
+function render(){ ({reception:renderReception,cert:renderCert,stat:renderStat,master:renderMaster}[view])(); }
+
+/* ===================== 접수 관리 ===================== */
+let selRec=null;
+function renderReception(){
+  const c=document.getElementById('content');
+  c.innerHTML=`
+    <div class="toolbar">
+      <label style="font-size:12px;color:var(--muted)">기간</label>
+      <input type="date" id="q_from"><span>~</span><input type="date" id="q_to">
+      <button onclick="renderReception()">조회</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="pri" onclick="openRec(null)">신규 등록</button>
+      <button onclick="openResFromSel()">결과 등록</button>
+      <button onclick="editSel()">수정</button>
+      <button class="dgr" onclick="delSel()">삭제</button>
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>접수번호</th><th>접수일</th><th>의뢰인</th><th>시료명</th><th>유형</th><th>항목</th><th>상태</th></tr></thead>
+      <tbody id="recBody"></tbody>
+    </table></div>`;
+  const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
+  if(!from.value){ const d=new Date(); d.setDate(d.getDate()-30);
+    from.value=d.toISOString().slice(0,10); to.value=today(); }
+  const list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value)
+    .sort((a,b)=> b.date<a.date?-1:b.date>a.date?1:b.id-a.id);
+  const body=c.querySelector('#recBody');
+  if(!list.length){ body.innerHTML=`<tr><td colspan="7" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
+  body.innerHTML=list.map(r=>{
+    const t=byId(DB.types,r.typeId), cl=byId(DB.clients,r.clientId);
+    return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selRec===r.id?'sel':''}">
+      <td>${r.no||'<i style=color:#aaa>미부여</i>'}</td><td>${r.date}</td>
+      <td>${cl?cl.name:'-'}</td><td>${r.sample||'-'}</td><td>${t?t.name:'-'}</td>
+      <td>${r.items.length}</td><td>${pill(r.status)}</td></tr>`;
+  }).join('');
+}
+function pickRec(id){ selRec=id; document.querySelectorAll('#recBody tr').forEach(tr=>
+  tr.classList.toggle('sel', +tr.dataset.id===id)); }
+function editSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRec(selRec); }
+function openResFromSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRes(selRec); }
+function delSel(){ if(!selRec)return alert('접수건을 선택하세요');
+  const r=byId(DB.receptions,selRec);
+  if(r.status==='ISSUED')return alert('발급된 접수건은 삭제할 수 없습니다');
+  if(!confirm('선택한 접수건을 삭제할까요?'))return;
+  DB.receptions=DB.receptions.filter(x=>x.id!==selRec); selRec=null; save(); renderReception(); }
+
+/* 접수 등록/수정 모달 */
+let editRecId=null;
+function fillSelect(sel,arr,val,ph){ sel.innerHTML=(ph?`<option value="0">${ph}</option>`:'')+
+  arr.map(o=>`<option value="${o.id}">${o.name}</option>`).join(''); if(val!=null)sel.value=val; }
+function refreshPurposeType(){
+  const fid=+document.getElementById('f_field').value;
+  const pv=document.getElementById('f_purpose').value;
+  fillSelect(document.getElementById('f_purpose'), DB.purposes,pv||null,'(선택)');
+  fillSelect(document.getElementById('f_type'), DB.types.filter(t=>t.fid===fid),null,'(선택)');
+  refreshItemPreview();
+}
+function refreshItemPreview(){
+  const tid=+document.getElementById('f_type').value;
+  const ids=DB.typeItems[tid]||[];
+  const box=document.getElementById('f_items');
+  box.innerHTML = ids.length? ids.map(id=>{const it=byId(DB.items,id);
+      return `• ${it.name} <span style="color:#999">[${it.unit||'-'}] 기준 ${it.lo||'-'}~${it.hi||'-'}</span>`;}).join('<br>')
+    : '이 유형에 등록된 시험항목이 없습니다';
+}
+function openRec(id){
+  editRecId=id;
+  document.getElementById('recTitle').textContent = id?'접수 수정':'접수 등록';
+  fillSelect(document.getElementById('f_field'), DB.fields);
+  fillSelect(document.getElementById('f_client'), DB.clients,null,'(미지정)');
+  const r = id? byId(DB.receptions,id) : null;
+  document.getElementById('f_field').onchange=refreshPurposeType;
+  document.getElementById('f_type').onchange=refreshItemPreview;
+  if(r){
+    document.getElementById('f_date').value=r.date;
+    document.getElementById('f_field').value=r.fieldId; refreshPurposeType();
+    document.getElementById('f_purpose').value=r.purposeId||0;
+    document.getElementById('f_type').value=r.typeId||0; refreshItemPreview();
+    document.getElementById('f_client').value=r.clientId||0;
+    document.getElementById('f_sample').value=r.sample||'';
+    document.getElementById('f_place').value=r.place||'';
+    document.getElementById('f_sampler').value=r.sampler||'';
+    document.getElementById('f_receiver').value=r.receiver||'';
+  }else{
+    document.getElementById('f_date').value=today(); refreshPurposeType();
+    ['f_sample','f_place','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+  }
+  document.getElementById('recMask').classList.add('on');
+}
+function closeRec(){ document.getElementById('recMask').classList.remove('on'); }
+function saveRec(){
+  const g=id=>document.getElementById(id).value;
+  const typeId=+g('f_type');
+  const rec={
+    fieldId:+g('f_field'), purposeId:+g('f_purpose')||null, typeId:typeId||null,
+    clientId:+g('f_client')||null, date:g('f_date'), sample:g('f_sample').trim(),
+    place:g('f_place').trim(), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+  };
+  if(editRecId){
+    const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
+  }else{
+    const id=(DB.receptions.reduce((m,x)=>Math.max(m,x.id),0)||0)+1;
+    const ids=DB.typeItems[typeId]||[];
+    const items=ids.map((iid,i)=>({itemId:iid, meas:'', judge:'', fail:null, inspId:null, order:i}));
+    const no=nextRecNo(rec.date);
+    DB.receptions.push(Object.assign({id,no,status:'RECEIVED',items},rec));
+    selRec=id;
+  }
+  save(); closeRec(); renderReception();
+}
+
+/* ===================== 결과 등록 ===================== */
+let resRecId=null;
+function openRes(id){
+  resRecId=id; const r=byId(DB.receptions,id);
+  const cl=byId(DB.clients,r.clientId);
+  document.getElementById('resHead').textContent=`· ${r.no} · ${cl?cl.name:''} · ${r.sample||''}`;
+  fillSelect(document.getElementById('r_insp'), DB.inspectors,null,'(검사원 선택)');
+  drawResRows();
+  document.getElementById('resMask').classList.add('on');
+}
+function drawResRows(){
+  const r=byId(DB.receptions,resRecId);
+  document.getElementById('r_rows').innerHTML = r.items.map((ri,idx)=>{
+    const it=byId(DB.items,ri.itemId);
+    return `<tr>
+      <td>${it.name}</td><td>${it.unit||'-'}</td><td style="color:#666">${it.lo||'-'} ~ ${it.hi||'-'}</td>
+      <td><input value="${ri.meas||''}" data-idx="${idx}" oninput="onMeas(this)" style="width:100%"></td>
+      <td id="jc_${idx}"></td></tr>`;
+  }).join('');
+  r.items.forEach((_,i)=>updJudge(i));
+  updResSummary();
+}
+function onMeas(inp){ const i=+inp.dataset.idx; byId(DB.receptions,resRecId).items[i].meas=inp.value;
+  updJudge(i); updResSummary(); }
+function updJudge(i){
+  const r=byId(DB.receptions,resRecId), ri=r.items[i], it=byId(DB.items,ri.itemId);
+  const [j,f]=evaluate(ri.meas,it.lo,it.hi); ri.judge=j; ri.fail=f;
+  document.getElementById('jc_'+i).innerHTML=judgePill(j);
+}
+function updResSummary(){
+  const r=byId(DB.receptions,resRecId);
+  let ok=0,bad=0,none=0,empty=0;
+  r.items.forEach(ri=>{ if((ri.meas||'').trim()==='')empty++;
+    else if(ri.judge==='적합')ok++; else if(ri.judge==='부적합')bad++; else none++; });
+  document.getElementById('resSummary').innerHTML=
+    `적합 <b style="color:var(--ok)">${ok}</b> · 부적합 <b style="color:var(--bad)">${bad}</b> · 무판정 ${none} · 미입력 ${empty}`;
+}
+function closeRes(){ document.getElementById('resMask').classList.remove('on'); }
+function saveRes(){
+  const r=byId(DB.receptions,resRecId);
+  const insp=+document.getElementById('r_insp').value||null;
+  r.items.forEach(ri=>{ if((ri.meas||'').trim()!==''){ ri.inspId=insp; ri.done=true; } });
+  const allDone = r.items.every(ri=>ri.done);
+  if(r.status!=='ISSUED') r.status = allDone?'DONE':'TESTING';
+  save(); closeRes(); renderReception();
+}
+
+/* ===================== 성적서 ===================== */
+function renderCert(){
+  const c=document.getElementById('content');
+  const done=DB.receptions.filter(r=>r.status==='DONE'||r.status==='ISSUED');
+  c.innerHTML=`
+    <div class="toolbar"><span style="color:var(--muted);font-size:12.5px">완료(DONE)된 접수건에서 성적서를 발급합니다.</span></div>
+    <div class="card"><table>
+      <thead><tr><th>접수번호</th><th>의뢰인</th><th>시료명</th><th>판정</th><th>상태</th><th>성적서</th></tr></thead>
+      <tbody>${ done.length? done.map(r=>{
+        const cl=byId(DB.clients,r.clientId);
+        const anyFail=r.items.some(ri=>ri.fail===1);
+        const cert=DB.certificates.find(x=>x.recId===r.id);
+        return `<tr>
+          <td>${r.no}</td><td>${cl?cl.name:'-'}</td><td>${r.sample||'-'}</td>
+          <td>${anyFail?'<span class="pill j-bad">부적합 포함</span>':'<span class="pill j-ok">전항목 적합</span>'}</td>
+          <td>${pill(r.status)}</td>
+          <td>${ cert? `<button onclick="viewCert(${r.id})">보기·인쇄</button>`
+                     : `<button class="pri" onclick="makeCert(${r.id})">성적서 발급</button>` }</td>
+        </tr>`; }).join('')
+        : `<tr><td colspan="6" class="empty">발급 가능한 완료 접수건이 없습니다.</td></tr>` }
+      </tbody></table></div>`;
+}
+function makeCert(recId){
+  const r=byId(DB.receptions,recId);
+  DB.certSeq++; const y=r.date.slice(0,4);
+  const docNo=`제 ${y}-${String(DB.certSeq).padStart(4,'0')} 호`;
+  DB.certificates.push({id:DB.certSeq, recId, docNo, issueDate:today()});
+  r.status='ISSUED'; save(); renderCert(); viewCert(recId);
+}
+function viewCert(recId){
+  const r=byId(DB.receptions,recId), cert=DB.certificates.find(x=>x.recId===recId);
+  const cl=byId(DB.clients,r.clientId), t=byId(DB.types,r.typeId);
+  const anyFail=r.items.some(ri=>ri.fail===1);
+  const rows=r.items.map(ri=>{ const it=byId(DB.items,ri.itemId);
+    return `<tr><td>${it.name}</td><td>${it.unit||'-'}</td><td>${it.lo||'-'}~${it.hi||'-'}</td>
+      <td>${ri.meas||'-'}</td><td>${ri.judge||'-'}</td></tr>`; }).join('');
+  const c=document.getElementById('content');
+  c.innerHTML=`
+    <div class="toolbar no-print">
+      <button onclick="renderCert()">← 목록</button><span class="sp" style="flex:1"></span>
+      <button class="pri" onclick="window.print()">인쇄 / PDF 저장</button>
+    </div>
+    <div class="cert">
+      <h2 class="title">수 질 검 사 성 적 서</h2>
+      <div class="org">누리생명과학원 · 수질검사전문기관</div>
+      <table class="meta"><tbody>
+        <tr><td class="k">문서번호</td><td>${cert.docNo}</td><td class="k">발급일</td><td>${cert.issueDate}</td></tr>
+        <tr><td class="k">접수번호</td><td>${r.no}</td><td class="k">접수일</td><td>${r.date}</td></tr>
+        <tr><td class="k">의뢰인</td><td>${cl?cl.name:'-'}</td><td class="k">검사유형</td><td>${t?t.name:'-'}</td></tr>
+        <tr><td class="k">시료명</td><td>${r.sample||'-'}</td><td class="k">채수지</td><td>${r.place||'-'}</td></tr>
+      </tbody></table>
+      <table class="res">
+        <thead><tr><th>시험항목</th><th>단위</th><th>기준</th><th>결과</th><th>판정</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:10px;font-weight:700;color:${anyFail?'var(--bad)':'var(--ok)'}">
+        종합판정 : ${anyFail?'부적합':'적합'}</div>
+      <div class="note">이 성적서는 의뢰인이 제시한 시료에 대한 결과이며, 검사목적 이외에는 사용할 수 없습니다.</div>
+      <div class="sign">
+        검사기관 : 누리생명과학원 &nbsp; (직인)<br>
+        분석실장 &nbsp;&nbsp;&nbsp; (서명)<br>
+        품질책임자 &nbsp; (서명)
+      </div>
+    </div>`;
+}
+
+/* ===================== 통계·현황 ===================== */
+function renderStat(){
+  const c=document.getElementById('content');
+  const recs=DB.receptions;
+  const cntBy=st=>recs.filter(r=>r.status===st).length;
+  let ok=0,bad=0;
+  const fails=[];
+  recs.forEach(r=>r.items.forEach(ri=>{ if(ri.judge==='적합')ok++; if(ri.judge==='부적합'){bad++;
+    const it=byId(DB.items,ri.itemId); fails.push({no:r.no,item:it.name,meas:ri.meas,hi:it.hi}); } }));
+  // 유형별 접수 건수
+  const byType={}; recs.forEach(r=>{ const t=byId(DB.types,r.typeId); const k=t?t.name:'(미지정)';
+    byType[k]=(byType[k]||0)+1; });
+  c.innerHTML=`
+    <div class="stat">
+      <div class="box"><div class="n">${recs.length}</div><div class="l">총 접수건</div></div>
+      <div class="box"><div class="n" style="color:var(--warn)">${cntBy('TESTING')+cntBy('RECEIVED')}</div><div class="l">진행중(접수/검사중)</div></div>
+      <div class="box"><div class="n" style="color:var(--ok)">${cntBy('DONE')+cntBy('ISSUED')}</div><div class="l">완료·발급</div></div>
+      <div class="box"><div class="n" style="color:var(--bad)">${bad}</div><div class="l">부적합 항목수</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">유형별 접수 건수</div>
+        <table><tbody>${ Object.keys(byType).length? Object.entries(byType).map(([k,v])=>
+          `<tr><td>${k}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
+          : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">부적합 항목 (통보 대상)</div>
+        <table><tbody>${ fails.length? fails.map(f=>
+          `<tr><td>${f.no}</td><td>${f.item}</td><td style="color:var(--bad)">${f.meas} <span style="color:#999">(기준 ${f.hi})</span></td></tr>`).join('')
+          : `<tr><td class="empty">부적합 항목 없음</td></tr>` }</tbody></table>
+      </div>
+    </div>`;
+}
+
+/* ===================== 기준정보 ===================== */
+function renderMaster(){
+  const c=document.getElementById('content');
+  c.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">시험항목 · 기준</div>
+        <table><thead><tr><th>항목명</th><th>단위</th><th>기준(저)</th><th>기준(고)</th></tr></thead>
+        <tbody>${DB.items.map(it=>`<tr><td>${it.name}</td><td>${it.unit||'-'}</td><td>${it.lo||'-'}</td><td>${it.hi||'-'}</td></tr>`).join('')}</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">검사유형 → 시험항목</div>
+        <table><thead><tr><th>유형</th><th>포함 항목</th></tr></thead>
+        <tbody>${DB.types.map(t=>{ const ids=DB.typeItems[t.id]||[];
+          return `<tr><td>${t.name}</td><td style="color:#555">${ids.map(id=>byId(DB.items,id).name).join(', ')||'-'}</td></tr>`;}).join('')}</tbody></table>
+      </div>
+    </div>
+    <div class="note" style="margin-top:12px">※ 실제 규정(먹는물 수질기준, 수질오염공정시험기준 등)에 맞게 기준값을 조정해 사용하세요. 이 화면은 현재 조회 전용입니다.</div>`;
+}
+
+/* ===================== 시작 ===================== */
+renderDbInfo(); render();
+</script>
+</body>
+</html>
