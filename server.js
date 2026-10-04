@@ -30,6 +30,42 @@ db.exec(`CREATE TABLE IF NOT EXISTS reservations (
 
 const clean = body => Object.fromEntries(KEYS.map(k => [k, String(body[k] ?? '').trim()]));
 
+// 입력 검증: 오류가 있으면 { 필드키: 메시지 } 반환
+const REQUIRED = ['reserved_date', 'client_name'];
+const LONG_FIELDS = ['memo', 'test_detail', 'address'];
+const PHONE_FIELDS = ['client_phone', 'contact_mobile'];
+const LABEL = Object.fromEntries(FIELDS);
+const validDate = s => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00Z');
+  return !isNaN(d) && d.toISOString().slice(0, 10) === s;
+};
+function validate(d, id) {
+  const err = {};
+  for (const k of REQUIRED) if (!d[k]) err[k] = `${LABEL[k]}은(는) 필수 입력입니다.`;
+  for (const k of KEYS) {
+    const max = LONG_FIELDS.includes(k) ? 1000 : 100;
+    if (!err[k] && d[k].length > max) err[k] = `${LABEL[k]}은(는) ${max}자 이내로 입력해 주세요.`;
+    if (!err[k] && /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(d[k])) err[k] = `${LABEL[k]}에 사용할 수 없는 문자가 있습니다.`;
+  }
+  if (!err.reserved_date && d.reserved_date && !validDate(d.reserved_date)) err.reserved_date = '예약일은 YYYY-MM-DD 형식의 올바른 날짜여야 합니다.';
+  if (!err.registered_at && d.registered_at) {
+    const m = d.registered_at.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})$/);
+    if (!m || !validDate(m[1]) || +m[2] > 23 || +m[3] > 59) err.registered_at = '자료등록일시는 YYYY-MM-DD HH:MM 형식이어야 합니다.';
+  }
+  for (const k of PHONE_FIELDS) {
+    if (err[k] || !d[k]) continue;
+    const digits = d[k].replace(/\D/g, '').length;
+    if (!/^[0-9+\-() ]+$/.test(d[k]) || digits < 8 || digits > 15) err[k] = `${LABEL[k]}은(는) 숫자·하이픈(-)만 사용해 8~15자리로 입력해 주세요.`;
+  }
+  if (!err.reservation_no && d.reservation_no) {
+    if (/\s/.test(d.reservation_no)) err.reservation_no = '예약번호에는 공백을 사용할 수 없습니다.';
+    else if (db.prepare('SELECT 1 FROM reservations WHERE reservation_no=? AND id IS NOT ?').get(d.reservation_no, id ? Number(id) : null))
+      err.reservation_no = '이미 사용 중인 예약번호입니다.';
+  }
+  return Object.keys(err).length ? err : null;
+}
+
 function nextReservationNo() {
   const d = new Date(); const p = n => String(n).padStart(2, '0');
   const prefix = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
@@ -78,6 +114,8 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && !id) return send(res, 200, list(Object.fromEntries(url.searchParams)));
       if (req.method === 'POST' && !id) {
         const d = clean(await readBody(req));
+        const errors = validate(d);
+        if (errors) return send(res, 400, { errors });
         if (!d.reservation_no) d.reservation_no = nextReservationNo();
         if (!d.counselor) d.counselor = user;
         if (!d.registered_at) d.registered_at = new Date().toLocaleString('sv').slice(0, 16);
@@ -87,6 +125,8 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'PUT' && id) {
         const d = clean(await readBody(req));
+        const errors = validate(d, id);
+        if (errors) return send(res, 400, { errors });
         db.prepare(`UPDATE reservations SET ${KEYS.map(k => k + '=?').join(',')},updated_by=?,updated_at=datetime('now','localtime') WHERE id=?`)
           .run(...KEYS.map(k => d[k]), user, id);
         return send(res, 200, db.prepare('SELECT * FROM reservations WHERE id=?').get(id));
