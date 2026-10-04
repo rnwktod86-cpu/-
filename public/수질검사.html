@@ -124,9 +124,9 @@
           <div><label class="fld">팩스</label><input id="f_fax" style="width:100%"></div>
           <div><label class="fld">휴대전화</label><input id="f_mobile" style="width:100%"></div></div></div>
         <div class="full"><label class="fld">우편물수령주소</label><input id="f_addr" style="width:100%"></div>
+        <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
         <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
         <div><label class="fld">검체명</label><select id="f_type"></select></div>
-        <div><label class="fld">채수지주소</label><input id="f_place"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
         <div><label class="fld">접수일</label><input type="date" id="f_date"></div>
         <div><label class="fld">담당자</label><input id="f_receiver"></div>
@@ -461,7 +461,7 @@ function viewCert(recId){
         <tr><td class="k">문서번호</td><td>${cert.docNo}</td><td class="k">발급일</td><td>${cert.issueDate}</td></tr>
         <tr><td class="k">접수번호</td><td>${r.no}</td><td class="k">접수일</td><td>${r.date}</td></tr>
         <tr><td class="k">상호/명칭</td><td>${cl||'-'}</td><td class="k">검체명</td><td>${t?t.name:'-'}</td></tr>
-        <tr><td class="k">채수지주소</td><td colspan="3">${r.place||'-'}</td></tr>
+        <tr><td class="k">채수장소</td><td colspan="3">${r.place||'-'}</td></tr>
       </tbody></table>
       <table class="res">
         <thead><tr><th>시험항목</th><th>단위</th><th>기준</th><th>결과</th><th>판정</th></tr></thead>
