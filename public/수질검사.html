@@ -74,21 +74,6 @@
   .stat .box{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px; }
   .stat .box .n{ font-size:26px; font-weight:700; }
   .stat .box .l{ font-size:12px; color:var(--muted); margin-top:2px; }
-  /* 성적서 인쇄 */
-  .cert{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:26px 30px; max-width:760px; margin:0 auto; }
-  .cert h2.title{ text-align:center; font-size:20px; letter-spacing:8px; margin:0 0 4px; border:none; padding:0; }
-  .cert .org{ text-align:center; color:#555; font-size:13px; margin-bottom:16px; }
-  .cert .meta{ width:100%; font-size:12.5px; margin-bottom:12px; }
-  .cert .meta td{ border:1px solid #b9c0cc; padding:5px 8px; }
-  .cert .meta td.k{ background:#f0f2f5; width:90px; font-weight:600; }
-  .cert table.res th, .cert table.res td{ border:1px solid #b9c0cc; text-align:center; font-size:12.5px; }
-  .cert .sign{ margin-top:20px; text-align:right; font-size:13px; line-height:1.9; }
-  .note{ font-size:12px; color:var(--muted); margin-top:10px; }
-  @media print{
-    .side,.topbar,.toolbar,.no-print{ display:none !important; }
-    body{ background:#fff; } .content{ padding:0; }
-    .cert{ border:none; max-width:100%; }
-  }
 </style>
 </head>
 <body>
@@ -97,7 +82,6 @@
     <div class="brand"><span class="dot"></span> 수질검사 관리</div>
     <div class="nav" id="nav">
       <a data-v="reception" class="active">접수 관리</a>
-      <a data-v="cert">성적서</a>
       <a data-v="stat">통계·현황</a>
       <a data-v="master">기준정보</a>
     </div>
@@ -220,7 +204,7 @@ function migrate(d){ const sd=seed();
   return d; }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
 function renderDbInfo(){ document.getElementById('dbinfo').textContent =
-  `접수 ${DB.receptions.length}건 · 성적서 ${DB.certificates.length}건 · 데이터는 이 브라우저에 저장됨`; }
+  `접수 ${DB.receptions.length}건 · 데이터는 이 브라우저에 저장됨`; }
 
 // 의뢰인은 직접 입력(clientName). 예전 데이터의 clientId도 호환
 function clientName(r){ if(r.clientName!=null)return r.clientName; const c=byId(DB.clients,r.clientId); return c?c.name:''; }
@@ -252,7 +236,7 @@ function pill(st){ const [c,t]=statusPill[st]||['p-wait',st]; return `<span clas
 function judgePill(j){ const c=j==='적합'?'j-ok':j==='부적합'?'j-bad':'j-none'; return `<span class="pill ${c}">${j||'-'}</span>`; }
 
 /* ===================== 라우팅 ===================== */
-const titles={reception:'접수 관리',cert:'성적서',stat:'통계·현황',master:'기준정보'};
+const titles={reception:'접수 관리',stat:'통계·현황',master:'기준정보'};
 let view='reception';
 document.getElementById('nav').addEventListener('click',e=>{
   const a=e.target.closest('a'); if(!a)return;
@@ -261,7 +245,7 @@ document.getElementById('nav').addEventListener('click',e=>{
   document.getElementById('viewTitle').textContent=titles[view];
   render();
 });
-function render(){ ({reception:renderReception,cert:renderCert,stat:renderStat,master:renderMaster}[view])(); }
+function render(){ ({reception:renderReception,stat:renderStat,master:renderMaster}[view])(); }
 
 /* ===================== 접수 관리 ===================== */
 let selRec=null;
@@ -410,72 +394,6 @@ function saveRes(){
   const allDone = r.items.every(ri=>ri.done);
   if(r.status!=='ISSUED') r.status = allDone?'DONE':'TESTING';
   save(); closeRes(); renderReception();
-}
-
-/* ===================== 성적서 ===================== */
-function renderCert(){
-  const c=document.getElementById('content');
-  const done=DB.receptions.filter(r=>r.status==='DONE'||r.status==='ISSUED');
-  c.innerHTML=`
-    <div class="toolbar"><span style="color:var(--muted);font-size:12.5px">완료(DONE)된 접수건에서 성적서를 발급합니다.</span></div>
-    <div class="card"><table>
-      <thead><tr><th>접수번호</th><th>상호/명칭</th><th>판정</th><th>상태</th><th>성적서</th></tr></thead>
-      <tbody>${ done.length? done.map(r=>{
-        const cl=clientName(r);
-        const anyFail=r.items.some(ri=>ri.fail===1);
-        const cert=DB.certificates.find(x=>x.recId===r.id);
-        return `<tr>
-          <td>${r.no}</td><td>${cl||'-'}</td>
-          <td>${anyFail?'<span class="pill j-bad">부적합 포함</span>':'<span class="pill j-ok">전항목 적합</span>'}</td>
-          <td>${pill(r.status)}</td>
-          <td>${ cert? `<button onclick="viewCert(${r.id})">보기·인쇄</button>`
-                     : `<button class="pri" onclick="makeCert(${r.id})">성적서 발급</button>` }</td>
-        </tr>`; }).join('')
-        : `<tr><td colspan="5" class="empty">발급 가능한 완료 접수건이 없습니다.</td></tr>` }
-      </tbody></table></div>`;
-}
-function makeCert(recId){
-  const r=byId(DB.receptions,recId);
-  DB.certSeq++; const y=r.date.slice(0,4);
-  const docNo=`제 ${y}-${String(DB.certSeq).padStart(4,'0')} 호`;
-  DB.certificates.push({id:DB.certSeq, recId, docNo, issueDate:today()});
-  r.status='ISSUED'; save(); renderCert(); viewCert(recId);
-}
-function viewCert(recId){
-  const r=byId(DB.receptions,recId), cert=DB.certificates.find(x=>x.recId===recId);
-  const cl=clientName(r), t=byId(DB.types,r.typeId);
-  const anyFail=r.items.some(ri=>ri.fail===1);
-  const rows=r.items.map(ri=>{ const it=byId(DB.items,ri.itemId);
-    return `<tr><td>${it.name}</td><td>${it.unit||'-'}</td><td>${it.lo||'-'}~${it.hi||'-'}</td>
-      <td>${ri.meas||'-'}</td><td>${ri.judge||'-'}</td></tr>`; }).join('');
-  const c=document.getElementById('content');
-  c.innerHTML=`
-    <div class="toolbar no-print">
-      <button onclick="renderCert()">← 목록</button><span class="sp" style="flex:1"></span>
-      <button class="pri" onclick="window.print()">인쇄 / PDF 저장</button>
-    </div>
-    <div class="cert">
-      <h2 class="title">수 질 검 사 성 적 서</h2>
-      <div class="org">누리생명과학원 · 수질검사전문기관</div>
-      <table class="meta"><tbody>
-        <tr><td class="k">문서번호</td><td>${cert.docNo}</td><td class="k">발급일</td><td>${cert.issueDate}</td></tr>
-        <tr><td class="k">접수번호</td><td>${r.no}</td><td class="k">접수일</td><td>${r.date}</td></tr>
-        <tr><td class="k">상호/명칭</td><td>${cl||'-'}</td><td class="k">검체명</td><td>${t?t.name:'-'}</td></tr>
-        <tr><td class="k">채수장소</td><td colspan="3">${r.place||'-'}</td></tr>
-      </tbody></table>
-      <table class="res">
-        <thead><tr><th>시험항목</th><th>단위</th><th>기준</th><th>결과</th><th>판정</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div style="margin-top:10px;font-weight:700;color:${anyFail?'var(--bad)':'var(--ok)'}">
-        종합판정 : ${anyFail?'부적합':'적합'}</div>
-      <div class="note">이 성적서는 의뢰인이 제시한 시료에 대한 결과이며, 검사목적 이외에는 사용할 수 없습니다.</div>
-      <div class="sign">
-        검사기관 : 누리생명과학원 &nbsp; (직인)<br>
-        분석실장 &nbsp;&nbsp;&nbsp; (서명)<br>
-        품질책임자 &nbsp; (서명)
-      </div>
-    </div>`;
 }
 
 /* ===================== 통계·현황 ===================== */
