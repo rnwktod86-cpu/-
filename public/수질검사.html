@@ -118,7 +118,8 @@
     <div class="body">
       <div class="grid2">
         <div><label class="fld">접수일</label><input type="date" id="f_date"></div>
-        <div><label class="fld">의뢰인</label><input id="f_client" placeholder="의뢰인 직접 입력"></div>
+        <div><label class="fld">연락처</label><input id="f_tel" placeholder="010-0000-0000"></div>
+        <div class="full"><label class="fld">의뢰인</label><input id="f_client" placeholder="의뢰인 직접 입력"></div>
         <div><label class="fld">주소</label><input id="f_addr"></div>
         <div><label class="fld">채수지주소</label><input id="f_place"></div>
         <div><label class="fld">검사분야</label><select id="f_field"></select></div>
@@ -327,12 +328,13 @@ function openRec(id){
     document.getElementById('f_client').value=clientName(r);
     document.getElementById('f_place').value=r.place||'';
     document.getElementById('f_addr').value=r.addr||'';
+    document.getElementById('f_tel').value=r.tel||'';
     document.getElementById('f_resv').value=r.resv||'';
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
     document.getElementById('f_date').value=today(); refreshPurposeType();
-    ['f_client','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+    ['f_client','f_tel','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
   document.getElementById('recMask').classList.add('on');
 }
@@ -343,7 +345,7 @@ function saveRec(){
   const rec={
     fieldId:+g('f_field'), purposeId:+g('f_purpose')||null, typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
-    place:g('f_place').trim(), addr:g('f_addr').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
   if(editRecId){
     const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
