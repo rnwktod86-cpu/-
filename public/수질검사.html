@@ -132,8 +132,7 @@
         <div><label class="fld">접수일</label><input type="date" id="f_date"></div>
         <div><label class="fld">담당자</label><input id="f_receiver"></div>
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
-        <div class="full"><label class="fld">등록될 시험항목 (유형 선택 시 자동)</label>
-          <div class="prevbox" id="f_items">유형을 선택하세요</div></div>
+        <div class="full"><label class="fld">메모 사항</label><textarea id="f_memo" rows="4" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #c4ccd6;border-radius:5px"></textarea></div>
       </div>
     </div>
     <div class="foot">
@@ -318,26 +317,16 @@ function refreshPurposeType(){
   fillSelect(document.getElementById('f_purpose'), DB.purposes,pv||null,'(선택)');
   const tv=document.getElementById('f_type').value;
   fillSelect(document.getElementById('f_type'), DB.types,tv||null,'(선택)');
-  refreshItemPreview();
-}
-function refreshItemPreview(){
-  const tid=+document.getElementById('f_type').value;
-  const ids=DB.typeItems[tid]||[];
-  const box=document.getElementById('f_items');
-  box.innerHTML = ids.length? ids.map(id=>{const it=byId(DB.items,id);
-      return `• ${it.name} <span style="color:#999">[${it.unit||'-'}] 기준 ${it.lo||'-'}~${it.hi||'-'}</span>`;}).join('<br>')
-    : '이 유형에 등록된 시험항목이 없습니다';
 }
 function openRec(id){
   editRecId=id;
   document.getElementById('recTitle').textContent = id?'접수 수정':'접수 등록';
   const r = id? byId(DB.receptions,id) : null;
-  document.getElementById('f_type').onchange=refreshItemPreview;
   if(r){
     document.getElementById('f_date').value=r.date;
     refreshPurposeType();
     document.getElementById('f_purpose').value=r.purposeId||0;
-    document.getElementById('f_type').value=r.typeId||0; refreshItemPreview();
+    document.getElementById('f_type').value=r.typeId||0;
     document.getElementById('f_client').value=clientName(r);
     document.getElementById('f_place').value=r.place||'';
     document.getElementById('f_addr').value=r.addr||'';
@@ -345,13 +334,14 @@ function openRec(id){
     document.getElementById('f_fax').value=r.fax||'';
     document.getElementById('f_mobile').value=r.mobile||'';
     document.getElementById('f_rep').value=r.rep||'';
+    document.getElementById('f_memo').value=r.memo||'';
     document.getElementById('f_sample').value=r.sample||'';
     document.getElementById('f_resv').value=r.resv||'';
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
     document.getElementById('f_date').value=today(); refreshPurposeType();
-    ['f_client','f_rep','f_tel','f_fax','f_mobile','f_sample','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+    ['f_client','f_memo','f_rep','f_tel','f_fax','f_mobile','f_sample','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
   document.getElementById('recMask').classList.add('on');
 }
@@ -362,7 +352,7 @@ function saveRec(){
   const rec={
     purposeId:+g('f_purpose')||null, typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
-    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), sample:g('f_sample').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), sample:g('f_sample').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
   if(editRecId){
     const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
