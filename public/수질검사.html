@@ -125,8 +125,7 @@
           <div><label class="fld">휴대전화</label><input id="f_mobile" style="width:100%"></div></div></div>
         <div class="full"><label class="fld">우편물수령주소</label><input id="f_addr" style="width:100%"></div>
         <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
-        <div><label class="fld">검사유형</label><select id="f_type"></select></div>
-        <div><label class="fld">검체명</label><input id="f_sample"></div>
+        <div><label class="fld">검체명</label><select id="f_type"></select></div>
         <div><label class="fld">채수지주소</label><input id="f_place"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
         <div><label class="fld">접수일</label><input type="date" id="f_date"></div>
@@ -280,7 +279,7 @@ function renderReception(){
       <button class="dgr" onclick="delSel()">삭제</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th>접수번호</th><th>접수일</th><th>상호/명칭</th><th>유형</th><th>항목</th><th>상태</th></tr></thead>
+      <thead><tr><th>접수번호</th><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>항목</th><th>상태</th></tr></thead>
       <tbody id="recBody"></tbody>
     </table></div>`;
   const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
@@ -335,13 +334,12 @@ function openRec(id){
     document.getElementById('f_mobile').value=r.mobile||'';
     document.getElementById('f_rep').value=r.rep||'';
     document.getElementById('f_memo').value=r.memo||'';
-    document.getElementById('f_sample').value=r.sample||'';
     document.getElementById('f_resv').value=r.resv||'';
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
     document.getElementById('f_date').value=today(); refreshPurposeType();
-    ['f_client','f_memo','f_rep','f_tel','f_fax','f_mobile','f_sample','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+    ['f_client','f_memo','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
   document.getElementById('recMask').classList.add('on');
 }
@@ -352,7 +350,7 @@ function saveRec(){
   const rec={
     purposeId:+g('f_purpose')||null, typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
-    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), sample:g('f_sample').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
   if(editRecId){
     const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
@@ -462,8 +460,8 @@ function viewCert(recId){
       <table class="meta"><tbody>
         <tr><td class="k">문서번호</td><td>${cert.docNo}</td><td class="k">발급일</td><td>${cert.issueDate}</td></tr>
         <tr><td class="k">접수번호</td><td>${r.no}</td><td class="k">접수일</td><td>${r.date}</td></tr>
-        <tr><td class="k">상호/명칭</td><td>${cl||'-'}</td><td class="k">검사유형</td><td>${t?t.name:'-'}</td></tr>
-        <tr><td class="k">검체명</td><td>${r.sample||'-'}</td><td class="k">채수지주소</td><td>${r.place||'-'}</td></tr>
+        <tr><td class="k">상호/명칭</td><td>${cl||'-'}</td><td class="k">검체명</td><td>${t?t.name:'-'}</td></tr>
+        <tr><td class="k">채수지주소</td><td colspan="3">${r.place||'-'}</td></tr>
       </tbody></table>
       <table class="res">
         <thead><tr><th>시험항목</th><th>단위</th><th>기준</th><th>결과</th><th>판정</th></tr></thead>
@@ -489,7 +487,7 @@ function renderStat(){
   const fails=[];
   recs.forEach(r=>r.items.forEach(ri=>{ if(ri.judge==='적합')ok++; if(ri.judge==='부적합'){bad++;
     const it=byId(DB.items,ri.itemId); fails.push({no:r.no,item:it.name,meas:ri.meas,hi:it.hi}); } }));
-  // 유형별 접수 건수
+  // 검체명별 접수 건수
   const byType={}; recs.forEach(r=>{ const t=byId(DB.types,r.typeId); const k=t?t.name:'(미지정)';
     byType[k]=(byType[k]||0)+1; });
   c.innerHTML=`
@@ -501,7 +499,7 @@ function renderStat(){
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="card" style="padding:0">
-        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">유형별 접수 건수</div>
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">검체명별 접수 건수</div>
         <table><tbody>${ Object.keys(byType).length? Object.entries(byType).map(([k,v])=>
           `<tr><td>${k}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
           : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
@@ -533,8 +531,8 @@ function renderMaster(){
         <tbody>${DB.items.map(it=>`<tr><td>${esc(it.name)}</td><td>${esc(it.unit)||'-'}</td><td>${esc(it.lo)||'-'}</td><td>${esc(it.hi)||'-'}</td>${ops('item',it.id)}</tr>`).join('')}</tbody></table>
       </div>
       <div class="card" style="padding:0">
-        ${hd('검사유형 → 시험항목',`<button class="pri" onclick="openMst('type',null)">유형 추가</button>`)}
-        <table><thead><tr><th>유형</th><th>포함 항목</th><th></th></tr></thead>
+        ${hd('검체명 → 시험항목',`<button class="pri" onclick="openMst('type',null)">검체명 추가</button>`)}
+        <table><thead><tr><th>검체명</th><th>포함 항목</th><th></th></tr></thead>
         <tbody>${DB.types.map(t=>{ const ids=DB.typeItems[t.id]||[];
           return `<tr><td>${esc(t.name)}</td><td style="color:#555">${ids.map(id=>{const it=byId(DB.items,id);return it?esc(it.name):'';}).filter(Boolean).join(', ')||'-'}</td>${ops('type',t.id)}</tr>`;}).join('')}</tbody></table>
       </div>
@@ -555,8 +553,8 @@ function openMst(kind,id){
       +lab('기준(고)',`<input id="m_hi" style="width:100%" value="${esc(it.hi)}">`)+`</div>`;
   }else{
     const t=id?byId(DB.types,id):{name:''}; const sel=id?(DB.typeItems[id]||[]):[];
-    document.getElementById('mstTitle').textContent=id?'검사유형 수정':'검사유형 추가';
-    body.innerHTML=lab('유형명',`<input id="m_name" style="width:100%" value="${esc(t.name)}">`)
+    document.getElementById('mstTitle').textContent=id?'검체명 수정':'검체명 추가';
+    body.innerHTML=lab('검체명',`<input id="m_name" style="width:100%" value="${esc(t.name)}">`)
       +`<label class="fld">포함할 시험항목</label><div class="prevbox" style="max-height:260px">`
       +DB.items.map(it=>`<label style="display:block;padding:2px 0"><input type="checkbox" class="m_chk" value="${it.id}" ${sel.includes(it.id)?'checked':''}> ${esc(it.name)}</label>`).join('')+`</div>`;
   }
@@ -580,12 +578,12 @@ function saveMst(){
 function delMst(kind,id){
   if(kind==='item'){
     if(DB.receptions.some(r=>r.items.some(ri=>ri.itemId===id)))return alert('접수건에서 사용 중인 시험항목은 삭제할 수 없습니다');
-    if(!confirm('이 시험항목을 삭제할까요? (검사유형에서도 빠집니다)'))return;
+    if(!confirm('이 시험항목을 삭제할까요? (검체명에서도 빠집니다)'))return;
     DB.items=DB.items.filter(x=>x.id!==id);
     Object.keys(DB.typeItems).forEach(k=>{ DB.typeItems[k]=DB.typeItems[k].filter(x=>x!==id); });
   }else{
-    if(DB.receptions.some(r=>r.typeId===id))return alert('접수건에서 사용 중인 검사유형은 삭제할 수 없습니다');
-    if(!confirm('이 검사유형을 삭제할까요?'))return;
+    if(DB.receptions.some(r=>r.typeId===id))return alert('접수건에서 사용 중인 검체명은 삭제할 수 없습니다');
+    if(!confirm('이 검체명을 삭제할까요?'))return;
     DB.types=DB.types.filter(x=>x.id!==id); delete DB.typeItems[id];
   }
   save(); renderMaster();
