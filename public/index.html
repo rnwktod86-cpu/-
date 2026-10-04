@@ -21,6 +21,7 @@ form{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:
 label{display:flex;flex-direction:column;gap:3px;font-size:12px;opacity:.95}label.full{grid-column:1/-1}
 .actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 .meta{font-size:12px;opacity:.7;margin:6px 2px}
+.err{color:#d33;min-height:0}input:user-invalid,textarea:user-invalid{border-color:#d33}
 </style>
 </head>
 <body>
@@ -43,6 +44,8 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 let FIELDS=[],rows=[],editing=null;
 const LONG=['memo','test_detail','address'];
 const TYPE={reserved_date:'date',registered_at:'datetime-local'};
+const REQUIRED=['reserved_date','client_name'];
+const PHONE=['client_phone','contact_mobile'];
 const user=()=>($('#user').value||'').trim();
 $('#user').value=localStorage.getItem('user')||'';
 $('#user').onchange=()=>localStorage.setItem('user',user());
@@ -58,8 +61,11 @@ function openForm(r){
   editing=r;const d=r||{};
   $('#form').innerHTML=FIELDS.map(([k,l])=>{
     const v=esc(d[k]);
-    const input=LONG.includes(k)?`<textarea name="${k}" rows="2">${v}</textarea>`:`<input name="${k}" type="${TYPE[k]||'text'}" value="${v}">`;
-    return `<label class="${LONG.includes(k)?'full':''}">${l}${input}</label>`;
+    const req=REQUIRED.includes(k)?' required':'';
+    const input=LONG.includes(k)?`<textarea name="${k}" rows="2" maxlength="1000"${req}>${v}</textarea>`
+      :PHONE.includes(k)?`<input name="${k}" type="tel" value="${v}" maxlength="20" pattern="[0-9+\\-() ]{8,20}" title="숫자·하이픈(-)만 사용해 8~15자리로 입력해 주세요" placeholder="010-0000-0000"${req}>`
+      :`<input name="${k}" type="${TYPE[k]||'text'}" value="${v}" maxlength="100"${req}>`;
+    return `<label class="${LONG.includes(k)?'full':''}">${l}${REQUIRED.includes(k)?' <b style="color:#d33">*</b>':''}${input}<small class="err" data-for="${k}"></small></label>`;
   }).join('')+`<div class="actions">${r?'<button type="button" class="del" id="del">삭제</button>':''}<span style="margin-right:auto" class="meta">${r?`최종수정: ${esc(r.updated_by)} ${esc(r.updated_at)}`:'예약번호를 비우면 자동 생성됩니다'}</span><button type="button" id="cancel">취소</button><button class="pri" type="submit">저장</button></div>`;
   const dt=$('[name=registered_at]');if(dt&&dt.value)dt.value=dt.value.replace(' ','T');
   $('#dlg').showModal();
@@ -71,7 +77,14 @@ $('#form').onsubmit=async e=>{
   if(!user()){alert('상단에 내 이름을 입력해 주세요.');return;}
   const body=Object.fromEntries(new FormData(e.target));
   if(body.registered_at)body.registered_at=body.registered_at.replace('T',' ');
-  await api('/api/reservations'+(editing?'/'+editing.id:''),{method:editing?'PUT':'POST',body:JSON.stringify(body)});
+  document.querySelectorAll('.err').forEach(s=>s.textContent='');
+  const res=await api('/api/reservations'+(editing?'/'+editing.id:''),{method:editing?'PUT':'POST',body:JSON.stringify(body)});
+  if(res.errors){
+    for(const [k,msg] of Object.entries(res.errors)){const s=document.querySelector(`.err[data-for=${k}]`);if(s)s.textContent=msg;}
+    const first=document.querySelector('.err:not(:empty)');if(first)first.closest('label').querySelector('input,textarea').focus();
+    return;
+  }
+  if(res.error){alert('저장하지 못했습니다: '+res.error);return;}
   $('#dlg').close();load();
 };
 $('#add').onclick=()=>openForm(null);
