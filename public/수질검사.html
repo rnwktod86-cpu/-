@@ -101,6 +101,9 @@
     <h2 id="recTitle">접수 등록</h2>
     <div class="body">
       <div class="grid2">
+        <div class="full" style="position:relative"><label class="fld">기존고객 검색 (상호·대표자·전화·주소)</label>
+          <input id="f_cs" style="width:100%" placeholder="입력하면 이전 접수 고객이 나타납니다" autocomplete="off" oninput="searchCust()">
+          <div id="f_cs_res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #c4ccd6;border-radius:5px;max-height:220px;overflow:auto;box-shadow:0 6px 18px rgba(0,0,0,.15)"></div></div>
         <div class="full"><label class="fld">접수일</label><input type="date" id="f_date"></div>
         <div><label class="fld">상호/명칭</label><input id="f_client"></div>
         <div><label class="fld">대표자</label><input id="f_rep"></div>
@@ -303,6 +306,7 @@ function refreshPurposeType(){
 }
 function openRec(id){
   editRecId=id;
+  document.getElementById('f_cs').value=''; document.getElementById('f_cs_res').style.display='none';
   document.getElementById('recTitle').textContent = id?'접수 수정':'접수 등록';
   const r = id? byId(DB.receptions,id) : null;
   if(r){
@@ -326,6 +330,29 @@ function openRec(id){
     ['f_client','f_memo','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
   document.getElementById('recMask').classList.add('on');
+}
+/* 기존고객 검색: 이전 접수건에서 고객을 모아 선택하면 입력칸 자동 채움 */
+function customers(){
+  const m=new Map();
+  DB.receptions.slice().sort((a,b)=>a.id-b.id).forEach(r=>{ const n=clientName(r).trim(); if(!n)return;
+    m.set(n+'|'+(r.rep||''),{name:n,rep:r.rep||'',tel:r.tel||'',fax:r.fax||'',mobile:r.mobile||'',addr:r.addr||''}); });
+  return [...m.values()];
+}
+let custHits=[];
+function searchCust(){
+  const q=document.getElementById('f_cs').value.trim().toLowerCase(), box=document.getElementById('f_cs_res');
+  if(!q){ box.style.display='none'; return; }
+  custHits=customers().filter(c=>[c.name,c.rep,c.tel,c.fax,c.mobile,c.addr].join(' ').toLowerCase().includes(q)).slice(0,20);
+  box.innerHTML=custHits.length? custHits.map((c,i)=>`<div onmousedown="pickCust(${i})" style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line)" onmouseover="this.style.background='#f0f5fd'" onmouseout="this.style.background=''">
+      <b>${esc(c.name)}</b> <span style="color:var(--muted)">${esc(c.rep)} · ${esc(c.mobile||c.tel||'-')}</span><br><span style="font-size:12px;color:#777">${esc(c.addr)}</span></div>`).join('')
+    : '<div style="padding:10px;color:var(--muted)">일치하는 기존 고객이 없습니다</div>';
+  box.style.display='block';
+}
+function pickCust(i){
+  const c=custHits[i]; if(!c)return;
+  const set=(id,v)=>document.getElementById(id).value=v;
+  set('f_client',c.name); set('f_rep',c.rep); set('f_tel',c.tel); set('f_fax',c.fax); set('f_mobile',c.mobile); set('f_addr',c.addr);
+  set('f_cs',''); document.getElementById('f_cs_res').style.display='none';
 }
 function closeRec(){ document.getElementById('recMask').classList.remove('on'); }
 function saveRec(){
