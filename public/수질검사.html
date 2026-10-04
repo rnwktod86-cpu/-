@@ -112,7 +112,8 @@
           <div><label class="fld">팩스</label><input id="f_fax" style="width:100%"></div>
           <div><label class="fld">휴대전화</label><input id="f_mobile" style="width:100%"></div></div></div>
         <div class="full"><label class="fld">의뢰인주소</label><input id="f_addr" style="width:100%"></div>
-        <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
+        <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%" oninput="autoRegion()"></div>
+        <div class="full"><label class="fld">지역 (채수장소로 자동입력, 직접 수정 가능)</label><input id="f_region" style="width:100%"></div>
         <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
         <div><label class="fld">검체명</label><select id="f_type"></select></div>
         <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
@@ -270,7 +271,7 @@ function renderReception(){
       <button class="dgr" onclick="delSel()">삭제</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th>접수번호</th><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>항목</th><th>상태</th></tr></thead>
+      <thead><tr><th>접수번호</th><th>접수일</th><th>상호/명칭</th><th>지역</th><th>검체명</th><th>항목</th><th>상태</th></tr></thead>
       <tbody id="recBody"></tbody>
     </table></div>`;
   const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
@@ -279,12 +280,12 @@ function renderReception(){
   const list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value)
     .sort((a,b)=> b.date<a.date?-1:b.date>a.date?1:b.id-a.id);
   const body=c.querySelector('#recBody');
-  if(!list.length){ body.innerHTML=`<tr><td colspan="6" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
+  if(!list.length){ body.innerHTML=`<tr><td colspan="7" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
   body.innerHTML=list.map(r=>{
     const t=byId(DB.types,r.typeId), cl=clientName(r);
     return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selRec===r.id?'sel':''}">
       <td>${r.no||'<i style=color:#aaa>미부여</i>'}</td><td>${r.date}</td>
-      <td>${cl||'-'}</td><td>${t?t.name:'-'}</td>
+      <td>${cl||'-'}</td><td>${esc(r.region)||'-'}</td><td>${t?t.name:'-'}</td>
       <td>${r.items.length}</td><td>${pill(r.status)}</td></tr>`;
   }).join('');
 }
@@ -327,13 +328,15 @@ function openRec(id){
     document.getElementById('f_rep').value=r.rep||'';
     document.getElementById('f_memo').value=r.memo||'';
     document.getElementById('f_permit').value=r.permit||'';
+    document.getElementById('f_region').value=r.region||'';
     document.getElementById('f_resv').value=r.resv||'';
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
     document.getElementById('f_date').value=today(); refreshPurposeType();
-    ['f_client','f_memo','f_permit','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+    ['f_client','f_region','f_memo','f_permit','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
+  lastAutoRegion=(r&&r.region===regionFrom(r.place))?r.region:'';
   document.getElementById('recMask').classList.add('on');
 }
 /* 기존고객 검색: 이전 접수건에서 고객을 모아 선택하면 입력칸 자동 채움 */
@@ -359,6 +362,20 @@ function pickCust(i){
   set('f_client',c.name); set('f_rep',c.rep); set('f_tel',c.tel); set('f_fax',c.fax); set('f_mobile',c.mobile); set('f_addr',c.addr);
   set('f_cs',''); document.getElementById('f_cs_res').style.display='none';
 }
+/* 채수장소에서 지역(시·도 + 시·군·구) 추출 */
+function regionFrom(addr){
+  const t=(addr||'').trim().split(/\s+/); if(!t[0])return '';
+  const out=[t[0]];
+  if(t[1]&&/[시군구]$/.test(t[1])){ out.push(t[1]);
+    if(/시$/.test(t[1])&&t[2]&&/구$/.test(t[2]))out.push(t[2]); }
+  return out.join(' ');
+}
+let lastAutoRegion='';
+function autoRegion(){
+  const el=document.getElementById('f_region');
+  if(el.value.trim()===''||el.value===lastAutoRegion){
+    lastAutoRegion=regionFrom(document.getElementById('f_place').value); el.value=lastAutoRegion; }
+}
 function closeRec(){ document.getElementById('recMask').classList.remove('on'); }
 function saveRec(){
   const g=id=>document.getElementById(id).value;
@@ -366,7 +383,7 @@ function saveRec(){
   const rec={
     purposeId:+g('f_purpose')||null, typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
-    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), permit:g('f_permit').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), permit:g('f_permit').trim(), region:g('f_region').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
   if(editRecId){
     const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
