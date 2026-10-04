@@ -268,7 +268,7 @@ function renderReception(){
       <button class="dgr" onclick="delSel()">삭제</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>항목</th><th>상태</th></tr></thead>
+      <thead><tr><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>항목</th><th>채수예정일</th><th>상태</th></tr></thead>
       <tbody id="recBody"></tbody>
     </table></div>`;
   const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
@@ -277,15 +277,16 @@ function renderReception(){
   const list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value)
     .sort((a,b)=> b.date<a.date?-1:b.date>a.date?1:b.id-a.id);
   const body=c.querySelector('#recBody');
-  if(!list.length){ body.innerHTML=`<tr><td colspan="5" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
+  if(!list.length){ body.innerHTML=`<tr><td colspan="6" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
   body.innerHTML=list.map(r=>{
     const t=byId(DB.types,r.typeId), cl=clientName(r);
     return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selRec===r.id?'sel':''}">
       <td>${r.date}</td>
       <td>${cl||'-'}</td><td>${t?t.name:'-'}</td>
-      <td>${r.items.length}</td><td>${pill(r.status)}</td></tr>`;
+      <td>${r.items.length}</td><td>${r.resv||'-'}</td><td>${schedPill(r)}</td></tr>`;
   }).join('');
 }
+function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
 function pickRec(id){ selRec=id; document.querySelectorAll('#recBody tr').forEach(tr=>
   tr.classList.toggle('sel', +tr.dataset.id===id)); }
 function editSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRec(selRec); }
