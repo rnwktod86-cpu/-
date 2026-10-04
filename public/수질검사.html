@@ -169,7 +169,7 @@ const KEY='nbdlab_db_v1';
 function seed(){
   return {
     seq:{}, // 연도별 접수 일련번호
-    fields:[{id:1,name:'수질'},{id:2,name:'먹는물'}],
+    fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
     purposes:[
       {id:1,fid:1,name:'정기수질검사'},{id:2,fid:1,name:'지하수정기검사'},
       {id:3,fid:2,name:'먹는물 정기검사'},{id:4,fid:2,name:'학교 정기수질검사'}],
@@ -201,6 +201,7 @@ function seed(){
 let DB = load();
 function load(){ try{ const s=localStorage.getItem(KEY); return s?migrate(JSON.parse(s)):seed(); }catch(e){ return seed(); } }
 function migrate(d){ const sd=seed();
+  d.fields=sd.fields; // 검사분야: 정기검사/참고용 (id 유지)
   sd.types.forEach(t=>{ if(!d.types.some(x=>x.id===t.id||x.name===t.name)){
     d.types.push(t); d.typeItems[t.id]=sd.typeItems[t.id]; } });
   return d; }
@@ -298,10 +299,10 @@ let editRecId=null;
 function fillSelect(sel,arr,val,ph){ sel.innerHTML=(ph?`<option value="0">${ph}</option>`:'')+
   arr.map(o=>`<option value="${o.id}">${o.name}</option>`).join(''); if(val!=null)sel.value=val; }
 function refreshPurposeType(){
-  const fid=+document.getElementById('f_field').value;
   const pv=document.getElementById('f_purpose').value;
   fillSelect(document.getElementById('f_purpose'), DB.purposes,pv||null,'(선택)');
-  fillSelect(document.getElementById('f_type'), DB.types.filter(t=>t.fid===fid),null,'(선택)');
+  const tv=document.getElementById('f_type').value;
+  fillSelect(document.getElementById('f_type'), DB.types,tv||null,'(선택)');
   refreshItemPreview();
 }
 function refreshItemPreview(){
