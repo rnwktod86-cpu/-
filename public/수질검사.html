@@ -115,6 +115,7 @@
         <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
         <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
         <div><label class="fld">검체명</label><select id="f_type"></select></div>
+        <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
         <div><label class="fld">담당자</label><input id="f_receiver"></div>
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
@@ -325,12 +326,13 @@ function openRec(id){
     document.getElementById('f_mobile').value=r.mobile||'';
     document.getElementById('f_rep').value=r.rep||'';
     document.getElementById('f_memo').value=r.memo||'';
+    document.getElementById('f_permit').value=r.permit||'';
     document.getElementById('f_resv').value=r.resv||'';
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
     document.getElementById('f_date').value=today(); refreshPurposeType();
-    ['f_client','f_memo','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+    ['f_client','f_memo','f_permit','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
   document.getElementById('recMask').classList.add('on');
 }
@@ -364,7 +366,7 @@ function saveRec(){
   const rec={
     purposeId:+g('f_purpose')||null, typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
-    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), permit:g('f_permit').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
   if(editRecId){
     const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
