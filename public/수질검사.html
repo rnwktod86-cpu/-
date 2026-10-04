@@ -117,15 +117,19 @@
     <h2 id="recTitle">접수 등록</h2>
     <div class="body">
       <div class="grid2">
-        <div><label class="fld">접수일</label><input type="date" id="f_date"></div>
-        <div><label class="fld">의뢰인</label><input id="f_client" placeholder="의뢰인 직접 입력"></div>
-        <div class="full"><label class="fld">연락처</label><input id="f_tel" placeholder="010-0000-0000"></div>
-        <div><label class="fld">주소</label><input id="f_addr"></div>
-        <div><label class="fld">채수지주소</label><input id="f_place"></div>
-        <div><label class="fld">검사분야</label><select id="f_field"></select></div>
-        <div><label class="fld">검사유형</label><select id="f_type"></select></div>
+        <div><label class="fld">상호/명칭</label><input id="f_client"></div>
+        <div><label class="fld">대표자</label><input id="f_rep"></div>
+        <div class="full"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 14px">
+          <div><label class="fld">일반전화</label><input id="f_tel" style="width:100%"></div>
+          <div><label class="fld">팩스</label><input id="f_fax" style="width:100%"></div>
+          <div><label class="fld">휴대전화</label><input id="f_mobile" style="width:100%"></div></div></div>
+        <div class="full"><label class="fld">우편물수령주소</label><input id="f_addr" style="width:100%"></div>
         <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
-        <div><label class="fld">채수예약일</label><input type="date" id="f_resv"></div>
+        <div><label class="fld">검사유형</label><select id="f_type"></select></div>
+        <div><label class="fld">검체명</label><input id="f_sample"></div>
+        <div><label class="fld">채수지주소</label><input id="f_place"></div>
+        <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
+        <div><label class="fld">접수일</label><input type="date" id="f_date"></div>
         <div><label class="fld">담당자</label><input id="f_receiver"></div>
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
         <div class="full"><label class="fld">등록될 시험항목 (유형 선택 시 자동)</label>
@@ -170,9 +174,7 @@ function seed(){
   return {
     seq:{}, // 연도별 접수 일련번호
     fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
-    purposes:[
-      {id:1,fid:1,name:'정기수질검사'},{id:2,fid:1,name:'지하수정기검사'},
-      {id:3,fid:2,name:'먹는물 정기검사'},{id:4,fid:2,name:'학교 정기수질검사'}],
+    purposes:[{id:1,name:'정기검사'},{id:2,name:'참고'}],
     types:[
       {id:1,fid:2,name:'먹는물(법정)'},{id:2,fid:2,name:'먹는물(참고)'},
       {id:3,fid:1,name:'지하수질(음용)'},{id:4,fid:1,name:'하천수질'},
@@ -201,7 +203,8 @@ function seed(){
 let DB = load();
 function load(){ try{ const s=localStorage.getItem(KEY); return s?migrate(JSON.parse(s)):seed(); }catch(e){ return seed(); } }
 function migrate(d){ const sd=seed();
-  d.fields=sd.fields; // 검사분야: 정기검사/참고용 (id 유지)
+  if(!d.purposeV2){ d.purposeV2=1; d.purposes=sd.purposes; // 검사목적: 정기검사/참고 (구 검사분야 값 이어받음)
+    d.receptions.forEach(r=>{ r.purposeId=(r.fieldId===2)?2:1; }); }
   sd.types.forEach(t=>{ if(!d.types.some(x=>x.id===t.id||x.name===t.name)){
     d.types.push(t); d.typeItems[t.id]=sd.typeItems[t.id]; } });
   return d; }
@@ -266,7 +269,7 @@ function renderReception(){
       <button class="dgr" onclick="delSel()">삭제</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th>접수번호</th><th>접수일</th><th>의뢰인</th><th>유형</th><th>항목</th><th>상태</th></tr></thead>
+      <thead><tr><th>접수번호</th><th>접수일</th><th>상호/명칭</th><th>유형</th><th>항목</th><th>상태</th></tr></thead>
       <tbody id="recBody"></tbody>
     </table></div>`;
   const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
@@ -316,25 +319,27 @@ function refreshItemPreview(){
 function openRec(id){
   editRecId=id;
   document.getElementById('recTitle').textContent = id?'접수 수정':'접수 등록';
-  fillSelect(document.getElementById('f_field'), DB.fields);
   const r = id? byId(DB.receptions,id) : null;
-  document.getElementById('f_field').onchange=refreshPurposeType;
   document.getElementById('f_type').onchange=refreshItemPreview;
   if(r){
     document.getElementById('f_date').value=r.date;
-    document.getElementById('f_field').value=r.fieldId; refreshPurposeType();
+    refreshPurposeType();
     document.getElementById('f_purpose').value=r.purposeId||0;
     document.getElementById('f_type').value=r.typeId||0; refreshItemPreview();
     document.getElementById('f_client').value=clientName(r);
     document.getElementById('f_place').value=r.place||'';
     document.getElementById('f_addr').value=r.addr||'';
     document.getElementById('f_tel').value=r.tel||'';
+    document.getElementById('f_fax').value=r.fax||'';
+    document.getElementById('f_mobile').value=r.mobile||'';
+    document.getElementById('f_rep').value=r.rep||'';
+    document.getElementById('f_sample').value=r.sample||'';
     document.getElementById('f_resv').value=r.resv||'';
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
     document.getElementById('f_date').value=today(); refreshPurposeType();
-    ['f_client','f_tel','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+    ['f_client','f_rep','f_tel','f_fax','f_mobile','f_sample','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
   document.getElementById('recMask').classList.add('on');
 }
@@ -343,9 +348,9 @@ function saveRec(){
   const g=id=>document.getElementById(id).value;
   const typeId=+g('f_type');
   const rec={
-    fieldId:+g('f_field'), purposeId:+g('f_purpose')||null, typeId:typeId||null,
+    purposeId:+g('f_purpose')||null, typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
-    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), sample:g('f_sample').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
   if(editRecId){
     const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
@@ -414,7 +419,7 @@ function renderCert(){
   c.innerHTML=`
     <div class="toolbar"><span style="color:var(--muted);font-size:12.5px">완료(DONE)된 접수건에서 성적서를 발급합니다.</span></div>
     <div class="card"><table>
-      <thead><tr><th>접수번호</th><th>의뢰인</th><th>판정</th><th>상태</th><th>성적서</th></tr></thead>
+      <thead><tr><th>접수번호</th><th>상호/명칭</th><th>판정</th><th>상태</th><th>성적서</th></tr></thead>
       <tbody>${ done.length? done.map(r=>{
         const cl=clientName(r);
         const anyFail=r.items.some(ri=>ri.fail===1);
@@ -455,8 +460,8 @@ function viewCert(recId){
       <table class="meta"><tbody>
         <tr><td class="k">문서번호</td><td>${cert.docNo}</td><td class="k">발급일</td><td>${cert.issueDate}</td></tr>
         <tr><td class="k">접수번호</td><td>${r.no}</td><td class="k">접수일</td><td>${r.date}</td></tr>
-        <tr><td class="k">의뢰인</td><td>${cl||'-'}</td><td class="k">검사유형</td><td>${t?t.name:'-'}</td></tr>
-        <tr><td class="k">채수지주소</td><td colspan="3">${r.place||'-'}</td></tr>
+        <tr><td class="k">상호/명칭</td><td>${cl||'-'}</td><td class="k">검사유형</td><td>${t?t.name:'-'}</td></tr>
+        <tr><td class="k">검체명</td><td>${r.sample||'-'}</td><td class="k">채수지주소</td><td>${r.place||'-'}</td></tr>
       </tbody></table>
       <table class="res">
         <thead><tr><th>시험항목</th><th>단위</th><th>기준</th><th>결과</th><th>판정</th></tr></thead>
