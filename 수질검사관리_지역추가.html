@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수질검사 관리 시스템</title>
+<style>
+  * { box-sizing: border-box; }
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1f2430; --muted:#6b7280;
+    --line:#e3e6ea; --accent:#2f5aa8; --accent-d:#24457f;
+    --ok-bg:#e5f4ea; --ok:#1c7a41; --bad-bg:#fdeaea; --bad:#b3261e;
+    --warn-bg:#fdf3e0; --warn:#9a6a10; --sidebar:#2a3446;
+  }
+  body{ margin:0; font-family:"Malgun Gothic","맑은 고딕",AppleGothic,sans-serif;
+        background:var(--bg); color:var(--ink); font-size:14px; }
+  .app{ display:flex; min-height:100vh; }
+  /* 사이드바 */
+  .side{ width:200px; background:var(--sidebar); color:#dfe3ea; flex-shrink:0; }
+  .brand{ padding:16px 14px; font-size:15px; font-weight:700; border-bottom:1px solid #3a465c;
+          display:flex; align-items:center; gap:8px; }
+  .brand .dot{ width:10px; height:10px; border-radius:50%; background:#4d8de0; }
+  .nav a{ display:block; padding:11px 16px; color:#cbd2de; text-decoration:none; cursor:pointer;
+          border-left:3px solid transparent; font-size:13.5px; }
+  .nav a:hover{ background:#333f54; }
+  .nav a.active{ background:#333f54; border-left-color:#4d8de0; color:#fff; font-weight:600; }
+  /* 메인 */
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .topbar{ background:var(--panel); border-bottom:1px solid var(--line);
+           padding:10px 18px; display:flex; align-items:center; gap:10px; }
+  .topbar h1{ font-size:16px; margin:0; }
+  .content{ padding:18px; }
+  /* 공통 */
+  .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .toolbar .sp{ flex:1; }
+  button{ font-family:inherit; font-size:13px; padding:7px 13px; border:1px solid #c4ccd6;
+          background:#fff; border-radius:5px; cursor:pointer; }
+  button:hover{ background:#f0f3f7; }
+  button.pri{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.pri:hover{ background:var(--accent-d); }
+  button.dgr{ color:var(--bad); border-color:#e6b3b0; }
+  input,select{ font-family:inherit; font-size:13px; padding:6px 8px; border:1px solid #c4ccd6;
+                border-radius:5px; background:#fff; }
+  input:focus,select:focus{ outline:2px solid #bcd2f5; border-color:var(--accent); }
+  label.fld{ display:block; font-size:12px; color:var(--muted); margin:0 0 3px; }
+  table{ width:100%; border-collapse:collapse; background:#fff; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:13px; }
+  th{ background:#eef1f5; color:#40495a; font-weight:600; position:sticky; top:0; }
+  tbody tr:hover{ background:#f6f9fd; }
+  tr.sel{ background:#e8f0fc !important; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:8px; }
+  .pill{ font-size:11.5px; padding:2px 9px; border-radius:20px; display:inline-block; }
+  .p-wait{ background:#eceff3; color:#5b6472; }
+  .p-recv{ background:#e7effb; color:#2f5aa8; }
+  .p-test{ background:var(--warn-bg); color:var(--warn); }
+  .p-done{ background:var(--ok-bg); color:var(--ok); }
+  .p-issued{ background:#eae7fb; color:#5b46b3; }
+  .j-ok{ background:var(--ok-bg); color:var(--ok); }
+  .j-bad{ background:var(--bad-bg); color:var(--bad); }
+  .j-none{ background:#eef0f3; color:#8a919c; }
+  .empty{ padding:40px; text-align:center; color:var(--muted); }
+  /* 모달 */
+  .mask{ position:fixed; inset:0; background:rgba(20,26,38,.45); display:none;
+         align-items:flex-start; justify-content:center; padding:36px 16px; z-index:50; overflow:auto; }
+  .mask.on{ display:flex; }
+  .modal{ background:#fff; border-radius:10px; width:640px; max-width:100%; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  .modal h2{ margin:0; font-size:15px; padding:14px 18px; border-bottom:1px solid var(--line); }
+  .modal .body{ padding:16px 18px; }
+  .modal .foot{ padding:12px 18px; border-top:1px solid var(--line); display:flex; gap:8px; justify-content:flex-end; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  .grid2 .full{ grid-column:1 / -1; }
+  .prevbox{ border:1px solid var(--line); border-radius:6px; padding:8px 10px; max-height:150px; overflow:auto; font-size:12.5px; color:#444; background:#fafbfc; }
+  .stat{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .stat .box{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px; }
+  .stat .box .n{ font-size:26px; font-weight:700; }
+  .stat .box .l{ font-size:12px; color:var(--muted); margin-top:2px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="side">
+    <div class="brand"><span class="dot"></span> 수질검사 관리</div>
+    <div class="nav" id="nav">
+      <a data-v="reception" class="active">접수 관리</a>
+      <a data-v="stat">통계·현황</a>
+      <a data-v="master">기준정보</a>
+    </div>
+  </div>
+  <div class="main">
+    <div class="topbar"><h1 id="viewTitle">접수 관리</h1>
+      <span class="sp" style="flex:1"></span>
+      <span style="font-size:12px;color:var(--muted)" id="dbinfo"></span>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- 접수 등록/수정 모달 -->
+<div class="mask" id="recMask">
+  <div class="modal">
+    <h2 id="recTitle">접수 등록</h2>
+    <div class="body">
+      <div class="grid2">
+        <div class="full"><label class="fld">접수일</label><input type="date" id="f_date"></div>
+        <div><label class="fld">상호/명칭</label><input id="f_client"></div>
+        <div><label class="fld">대표자</label><input id="f_rep"></div>
+        <div class="full"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 14px">
+          <div><label class="fld">일반전화</label><input id="f_tel" style="width:100%"></div>
+          <div><label class="fld">팩스</label><input id="f_fax" style="width:100%"></div>
+          <div><label class="fld">휴대전화</label><input id="f_mobile" style="width:100%"></div></div></div>
+        <div class="full"><label class="fld">의뢰인주소</label><input id="f_addr" style="width:100%"></div>
+        <div><label class="fld">지역</label><select id="f_region"></select></div>
+        <div><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
+        <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
+        <div><label class="fld">검체명</label><select id="f_type"></select></div>
+        <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
+        <div><label class="fld">담당자</label><input id="f_receiver"></div>
+        <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
+        <div class="full"><label class="fld">메모 사항</label><textarea id="f_memo" rows="4" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #c4ccd6;border-radius:5px"></textarea></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button onclick="closeRec()">취소</button>
+      <button class="pri" onclick="saveRec()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 결과 등록 모달 -->
+<div class="mask" id="resMask">
+  <div class="modal" style="width:720px">
+    <h2>결과 등록 <span id="resHead" style="font-weight:400;color:var(--muted);font-size:12.5px"></span></h2>
+    <div class="body">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <label class="fld" style="margin:0">검사원</label>
+        <select id="r_insp" style="width:160px"></select>
+        <span class="sp" style="flex:1"></span>
+        <span id="resSummary" style="font-size:12.5px;color:var(--muted)"></span>
+      </div>
+      <table>
+        <thead><tr><th style="width:32%">시험항목</th><th>단위</th><th>기준(저~고)</th><th style="width:22%">측정값</th><th>판정</th></tr></thead>
+        <tbody id="r_rows"></tbody>
+      </table>
+      <div class="note">측정값에 <b>&lt;0.1</b>, <b>불검출</b> 같은 표기도 인식합니다. 기준(저·고) 모두 있으면 범위 판정, 한쪽만 있으면 초과 판정.</div>
+    </div>
+    <div class="foot">
+      <button onclick="closeRes()">닫기</button>
+      <button class="pri" onclick="saveRes()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 기준정보 편집 모달 -->
+<div class="mask" id="mstMask">
+  <div class="modal" style="width:520px">
+    <h2 id="mstTitle"></h2>
+    <div class="body" id="mstBody"></div>
+    <div class="foot">
+      <button onclick="closeMst()">취소</button>
+      <button class="pri" onclick="saveMst()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== 데이터 계층 (localStorage 영속) ===================== */
+const KEY='nbdlab_db_v1';
+function seed(){
+  return {
+    seq:{}, // 연도별 접수 일련번호
+    fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
+    purposes:[{id:1,name:'정기검사'},{id:2,name:'참고'}],
+    regions:[{id:1,name:'해운대구'},{id:2,name:'수영구'},{id:3,name:'동래구'},{id:4,name:'연제구'},{id:5,name:'남구'},
+      {id:6,name:'부산진구'},{id:7,name:'금정구'},{id:8,name:'기장군'},{id:9,name:'기타'}],
+    types:[
+      {id:1,fid:2,name:'먹는물(법정)'},{id:2,fid:2,name:'먹는물(참고)'},
+      {id:3,fid:1,name:'지하수질(음용)'},{id:4,fid:1,name:'하천수질'},
+      {id:5,fid:1,name:'지하수(음용수)'},{id:6,fid:1,name:'지하수(생활용수)'},
+      {id:7,fid:1,name:'지하수(농.어업용수)'},{id:8,fid:1,name:'저수조'},
+      {id:9,fid:1,name:'급수관'},{id:10,fid:1,name:'수영장수'},
+      {id:11,fid:1,name:'물놀이수경시설'}],
+    items:[
+      {id:1,name:'수소이온농도(pH)',unit:'',lo:'5.8',hi:'8.5'},
+      {id:2,name:'탁도',unit:'NTU',lo:'',hi:'1.0'},
+      {id:3,name:'잔류염소',unit:'mg/L',lo:'',hi:'4.0'},
+      {id:4,name:'질산성질소',unit:'mg/L',lo:'',hi:'10'},
+      {id:5,name:'일반세균',unit:'CFU/mL',lo:'',hi:'100'},
+      {id:6,name:'총대장균군',unit:'',lo:'',hi:'불검출'}],
+    typeItems:{ 1:[1,2,3,4,5,6], 2:[1,2,6], 3:[1,2,4,6], 4:[1,2,4],
+      5:[1,2,4,6], 6:[1,2,4,6], 7:[1,2,4,6], 8:[1,2,3,6], 9:[1,2,3,6], 10:[1,2,3,6], 11:[1,2,3,6] },
+    inspectors:[
+      {id:1,name:'분석실장'},{id:2,name:'검사원A'},{id:3,name:'검사원B'}],
+    clients:[
+      {id:1,name:'○○아파트 관리사무소'},{id:2,name:'△△학교'},{id:3,name:'□□정수장'}],
+    receptions:[],
+    certificates:[],
+    certSeq:0
+  };
+}
+let DB = load();
+function load(){ try{ const s=localStorage.getItem(KEY); return s?migrate(JSON.parse(s)):seed(); }catch(e){ return seed(); } }
+function migrate(d){ const sd=seed();
+  if(!d.purposeV2){ d.purposeV2=1; d.purposes=sd.purposes; // 검사목적: 정기검사/참고 (구 검사분야 값 이어받음)
+    d.receptions.forEach(r=>{ r.purposeId=(r.fieldId===2)?2:1; }); }
+  if(!d.regions) d.regions=sd.regions;
+  sd.types.forEach(t=>{ if(!d.types.some(x=>x.id===t.id||x.name===t.name)){
+    d.types.push(t); d.typeItems[t.id]=sd.typeItems[t.id]; } });
+  return d; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
+function renderDbInfo(){ document.getElementById('dbinfo').textContent =
+  `접수 ${DB.receptions.length}건 · 데이터는 이 브라우저에 저장됨`; }
+
+// 의뢰인은 직접 입력(clientName). 예전 데이터의 clientId도 호환
+function clientName(r){ if(r.clientName!=null)return r.clientName; const c=byId(DB.clients,r.clientId); return c?c.name:''; }
+const byId=(arr,id)=>arr.find(x=>x.id===id);
+const today=()=>new Date().toISOString().slice(0,10);
+function nextRecNo(dateStr){ const y=dateStr.slice(0,4); DB.seq[y]=(DB.seq[y]||0)+1;
+  return `${y}-${String(DB.seq[y]).padStart(6,'0')}`; }
+
+/* ===================== 판정 로직 (Delphi/Python 시연과 동일) ===================== */
+function tryNum(s){ let t=(s||'').trim(); if(t&&'<>≤≥'.includes(t[0]))t=t.slice(1).trim();
+  const v=parseFloat(t); return (t!==''&&!isNaN(v)&&isFinite(v))?{ok:true,v}:{ok:false}; }
+function evaluate(meas,lo,hi){
+  const tm=(meas||'').trim(), th=(hi||'').trim();
+  const M=tryNum(meas),L=tryNum(lo),H=tryNum(hi);
+  const below=tm!==''&&'<≤'.includes(tm[0]);
+  if(th==='불검출'||th==='불검출됨'){
+    if(tm==='')return['무판정',null];
+    if(below||tm==='불검출'||(M.ok&&M.v===0))return['적합',0];
+    return['부적합',1];
+  }
+  if(!M.ok)return['무판정',null];
+  if(L.ok&&M.v<L.v)return['부적합',1];
+  if(H.ok&&M.v>H.v)return['부적합',1];
+  if(L.ok||H.ok)return['적합',0];
+  return['무판정',null];
+}
+const statusPill={WAIT:['p-wait','대기'],RECEIVED:['p-recv','접수'],TESTING:['p-test','검사중'],DONE:['p-done','완료'],ISSUED:['p-issued','발급']};
+function pill(st){ const [c,t]=statusPill[st]||['p-wait',st]; return `<span class="pill ${c}">${t}</span>`; }
+function judgePill(j){ const c=j==='적합'?'j-ok':j==='부적합'?'j-bad':'j-none'; return `<span class="pill ${c}">${j||'-'}</span>`; }
+
+/* ===================== 라우팅 ===================== */
+const titles={reception:'접수 관리',stat:'통계·현황',master:'기준정보'};
+let view='reception';
+document.getElementById('nav').addEventListener('click',e=>{
+  const a=e.target.closest('a'); if(!a)return;
+  document.querySelectorAll('#nav a').forEach(x=>x.classList.remove('active'));
+  a.classList.add('active'); view=a.dataset.v;
+  document.getElementById('viewTitle').textContent=titles[view];
+  render();
+});
+function render(){ ({reception:renderReception,stat:renderStat,master:renderMaster}[view])(); }
+
+/* ===================== 접수 관리 ===================== */
+let selRec=null;
+function renderReception(){
+  const c=document.getElementById('content');
+  c.innerHTML=`
+    <div class="toolbar">
+      <label style="font-size:12px;color:var(--muted)">기간</label>
+      <input type="date" id="q_from"><span>~</span><input type="date" id="q_to">
+      <button onclick="renderReception()">조회</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="pri" onclick="openRec(null)">신규 등록</button>
+      <button onclick="openResFromSel()">결과 등록</button>
+      <button onclick="editSel()">수정</button>
+      <button class="dgr" onclick="delSel()">삭제</button>
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>접수번호</th><th>접수일</th><th>상호/명칭</th><th>지역</th><th>검체명</th><th>항목</th><th>상태</th></tr></thead>
+      <tbody id="recBody"></tbody>
+    </table></div>`;
+  const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
+  if(!from.value){ const d=new Date(); d.setDate(d.getDate()-30);
+    from.value=d.toISOString().slice(0,10); to.value=today(); }
+  const list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value)
+    .sort((a,b)=> b.date<a.date?-1:b.date>a.date?1:b.id-a.id);
+  const body=c.querySelector('#recBody');
+  if(!list.length){ body.innerHTML=`<tr><td colspan="7" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
+  body.innerHTML=list.map(r=>{
+    const t=byId(DB.types,r.typeId), cl=clientName(r), rg=byId(DB.regions,r.regionId);
+    return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selRec===r.id?'sel':''}">
+      <td>${r.no||'<i style=color:#aaa>미부여</i>'}</td><td>${r.date}</td>
+      <td>${cl||'-'}</td><td>${rg?esc(rg.name):'-'}</td><td>${t?t.name:'-'}</td>
+      <td>${r.items.length}</td><td>${pill(r.status)}</td></tr>`;
+  }).join('');
+}
+function pickRec(id){ selRec=id; document.querySelectorAll('#recBody tr').forEach(tr=>
+  tr.classList.toggle('sel', +tr.dataset.id===id)); }
+function editSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRec(selRec); }
+function openResFromSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRes(selRec); }
+function delSel(){ if(!selRec)return alert('접수건을 선택하세요');
+  const r=byId(DB.receptions,selRec);
+  if(r.status==='ISSUED')return alert('발급된 접수건은 삭제할 수 없습니다');
+  if(!confirm('선택한 접수건을 삭제할까요?'))return;
+  DB.receptions=DB.receptions.filter(x=>x.id!==selRec); selRec=null; save(); renderReception(); }
+
+/* 접수 등록/수정 모달 */
+let editRecId=null;
+function fillSelect(sel,arr,val,ph){ sel.innerHTML=(ph?`<option value="0">${ph}</option>`:'')+
+  arr.map(o=>`<option value="${o.id}">${o.name}</option>`).join(''); if(val!=null)sel.value=val; }
+function refreshPurposeType(){
+  const pv=document.getElementById('f_purpose').value;
+  fillSelect(document.getElementById('f_purpose'), DB.purposes,pv||null,'(선택)');
+  const tv=document.getElementById('f_type').value;
+  fillSelect(document.getElementById('f_type'), DB.types,tv||null,'(선택)');
+  const rv=document.getElementById('f_region').value;
+  fillSelect(document.getElementById('f_region'), DB.regions,rv||null,'(선택)');
+}
+function openRec(id){
+  editRecId=id;
+  document.getElementById('recTitle').textContent = id?'접수 수정':'접수 등록';
+  const r = id? byId(DB.receptions,id) : null;
+  if(r){
+    document.getElementById('f_date').value=r.date;
+    refreshPurposeType();
+    document.getElementById('f_purpose').value=r.purposeId||0;
+    document.getElementById('f_type').value=r.typeId||0;
+    document.getElementById('f_region').value=r.regionId||0;
+    document.getElementById('f_client').value=clientName(r);
+    document.getElementById('f_place').value=r.place||'';
+    document.getElementById('f_addr').value=r.addr||'';
+    document.getElementById('f_tel').value=r.tel||'';
+    document.getElementById('f_fax').value=r.fax||'';
+    document.getElementById('f_mobile').value=r.mobile||'';
+    document.getElementById('f_rep').value=r.rep||'';
+    document.getElementById('f_memo').value=r.memo||'';
+    document.getElementById('f_resv').value=r.resv||'';
+    document.getElementById('f_sampler').value=r.sampler||'';
+    document.getElementById('f_receiver').value=r.receiver||'';
+  }else{
+    document.getElementById('f_date').value=today(); refreshPurposeType();
+    ['f_client','f_memo','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+  }
+  document.getElementById('recMask').classList.add('on');
+}
+function closeRec(){ document.getElementById('recMask').classList.remove('on'); }
+function saveRec(){
+  const g=id=>document.getElementById(id).value;
+  const typeId=+g('f_type');
+  const rec={
+    purposeId:+g('f_purpose')||null, regionId:+g('f_region')||null, typeId:typeId||null,
+    clientName:g('f_client').trim(), date:g('f_date'),
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+  };
+  if(editRecId){
+    const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
+  }else{
+    const id=(DB.receptions.reduce((m,x)=>Math.max(m,x.id),0)||0)+1;
+    const ids=DB.typeItems[typeId]||[];
+    const items=ids.map((iid,i)=>({itemId:iid, meas:'', judge:'', fail:null, inspId:null, order:i}));
+    const no=nextRecNo(rec.date);
+    DB.receptions.push(Object.assign({id,no,status:'RECEIVED',items},rec));
+    selRec=id;
+  }
+  save(); closeRec(); renderReception();
+}
+
+/* ===================== 결과 등록 ===================== */
+let resRecId=null;
+function openRes(id){
+  resRecId=id; const r=byId(DB.receptions,id);
+  const cl=clientName(r);
+  document.getElementById('resHead').textContent=`· ${r.no} · ${cl}`;
+  fillSelect(document.getElementById('r_insp'), DB.inspectors,null,'(검사원 선택)');
+  drawResRows();
+  document.getElementById('resMask').classList.add('on');
+}
+function drawResRows(){
+  const r=byId(DB.receptions,resRecId);
+  document.getElementById('r_rows').innerHTML = r.items.map((ri,idx)=>{
+    const it=byId(DB.items,ri.itemId);
+    return `<tr>
+      <td>${it.name}</td><td>${it.unit||'-'}</td><td style="color:#666">${it.lo||'-'} ~ ${it.hi||'-'}</td>
+      <td><input value="${ri.meas||''}" data-idx="${idx}" oninput="onMeas(this)" style="width:100%"></td>
+      <td id="jc_${idx}"></td></tr>`;
+  }).join('');
+  r.items.forEach((_,i)=>updJudge(i));
+  updResSummary();
+}
+function onMeas(inp){ const i=+inp.dataset.idx; byId(DB.receptions,resRecId).items[i].meas=inp.value;
+  updJudge(i); updResSummary(); }
+function updJudge(i){
+  const r=byId(DB.receptions,resRecId), ri=r.items[i], it=byId(DB.items,ri.itemId);
+  const [j,f]=evaluate(ri.meas,it.lo,it.hi); ri.judge=j; ri.fail=f;
+  document.getElementById('jc_'+i).innerHTML=judgePill(j);
+}
+function updResSummary(){
+  const r=byId(DB.receptions,resRecId);
+  let ok=0,bad=0,none=0,empty=0;
+  r.items.forEach(ri=>{ if((ri.meas||'').trim()==='')empty++;
+    else if(ri.judge==='적합')ok++; else if(ri.judge==='부적합')bad++; else none++; });
+  document.getElementById('resSummary').innerHTML=
+    `적합 <b style="color:var(--ok)">${ok}</b> · 부적합 <b style="color:var(--bad)">${bad}</b> · 무판정 ${none} · 미입력 ${empty}`;
+}
+function closeRes(){ document.getElementById('resMask').classList.remove('on'); }
+function saveRes(){
+  const r=byId(DB.receptions,resRecId);
+  const insp=+document.getElementById('r_insp').value||null;
+  r.items.forEach(ri=>{ if((ri.meas||'').trim()!==''){ ri.inspId=insp; ri.done=true; } });
+  const allDone = r.items.every(ri=>ri.done);
+  if(r.status!=='ISSUED') r.status = allDone?'DONE':'TESTING';
+  save(); closeRes(); renderReception();
+}
+
+/* ===================== 통계·현황 ===================== */
+function renderStat(){
+  const c=document.getElementById('content');
+  const recs=DB.receptions;
+  const cntBy=st=>recs.filter(r=>r.status===st).length;
+  let ok=0,bad=0;
+  const fails=[];
+  recs.forEach(r=>r.items.forEach(ri=>{ if(ri.judge==='적합')ok++; if(ri.judge==='부적합'){bad++;
+    const it=byId(DB.items,ri.itemId); fails.push({no:r.no,item:it.name,meas:ri.meas,hi:it.hi}); } }));
+  // 검체명별 접수 건수
+  const byType={}; recs.forEach(r=>{ const t=byId(DB.types,r.typeId); const k=t?t.name:'(미지정)';
+    byType[k]=(byType[k]||0)+1; });
+  const byRegion={}; recs.forEach(r=>{ const g=byId(DB.regions,r.regionId); const k=g?g.name:'(미지정)';
+    byRegion[k]=(byRegion[k]||0)+1; });
+  c.innerHTML=`
+    <div class="stat">
+      <div class="box"><div class="n">${recs.length}</div><div class="l">총 접수건</div></div>
+      <div class="box"><div class="n" style="color:var(--warn)">${cntBy('TESTING')+cntBy('RECEIVED')}</div><div class="l">진행중(접수/검사중)</div></div>
+      <div class="box"><div class="n" style="color:var(--ok)">${cntBy('DONE')+cntBy('ISSUED')}</div><div class="l">완료·발급</div></div>
+      <div class="box"><div class="n" style="color:var(--bad)">${bad}</div><div class="l">부적합 항목수</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">검체명별 접수 건수</div>
+        <table><tbody>${ Object.keys(byType).length? Object.entries(byType).map(([k,v])=>
+          `<tr><td>${k}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
+          : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">지역별 접수 건수</div>
+        <table><tbody>${ Object.keys(byRegion).length? Object.entries(byRegion).map(([k,v])=>
+          `<tr><td>${esc(k)}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
+          : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">부적합 항목 (통보 대상)</div>
+        <table><tbody>${ fails.length? fails.map(f=>
+          `<tr><td>${f.no}</td><td>${f.item}</td><td style="color:var(--bad)">${f.meas} <span style="color:#999">(기준 ${f.hi})</span></td></tr>`).join('')
+          : `<tr><td class="empty">부적합 항목 없음</td></tr>` }</tbody></table>
+      </div>
+    </div>`;
+}
+
+/* ===================== 기준정보 (추가·수정·삭제) ===================== */
+const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const nextId=arr=>arr.reduce((m,x)=>Math.max(m,x.id),0)+1;
+function renderMaster(){
+  const c=document.getElementById('content');
+  const hd=(t,btn)=>`<div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line);display:flex;align-items:center">
+    <span style="flex:1">${t}</span>${btn}</div>`;
+  const ops=(kind,id)=>`<td style="white-space:nowrap;text-align:right">
+    <button onclick="openMst('${kind}',${id})">수정</button>
+    <button class="dgr" onclick="delMst('${kind}',${id})">삭제</button></td>`;
+  c.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+      <div class="card" style="padding:0">
+        ${hd('시험항목 · 기준',`<button class="pri" onclick="openMst('item',null)">항목 추가</button>`)}
+        <table><thead><tr><th>항목명</th><th>단위</th><th>기준(저)</th><th>기준(고)</th><th></th></tr></thead>
+        <tbody>${DB.items.map(it=>`<tr><td>${esc(it.name)}</td><td>${esc(it.unit)||'-'}</td><td>${esc(it.lo)||'-'}</td><td>${esc(it.hi)||'-'}</td>${ops('item',it.id)}</tr>`).join('')}</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        ${hd('검체명 → 시험항목',`<button class="pri" onclick="openMst('type',null)">검체명 추가</button>`)}
+        <table><thead><tr><th>검체명</th><th>포함 항목</th><th></th></tr></thead>
+        <tbody>${DB.types.map(t=>{ const ids=DB.typeItems[t.id]||[];
+          return `<tr><td>${esc(t.name)}</td><td style="color:#555">${ids.map(id=>{const it=byId(DB.items,id);return it?esc(it.name):'';}).filter(Boolean).join(', ')||'-'}</td>${ops('type',t.id)}</tr>`;}).join('')}</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        ${hd('지역',`<button class="pri" onclick="openMst('region',null)">지역 추가</button>`)}
+        <table><thead><tr><th>지역명</th><th></th></tr></thead>
+        <tbody>${DB.regions.map(g=>`<tr><td>${esc(g.name)}</td>${ops('region',g.id)}</tr>`).join('')}</tbody></table>
+      </div>
+    </div>
+    <div class="note" style="margin-top:12px">※ 실제 규정(먹는물 수질기준, 수질오염공정시험기준 등)에 맞게 기준값을 조정해 사용하세요. 기준(저·고)을 비우면 해당 방향은 판정하지 않으며, 기준(고)에 <b>불검출</b>을 쓰면 불검출 판정을 합니다.</div>`;
+}
+let mstKind=null, mstId=null;
+function openMst(kind,id){
+  mstKind=kind; mstId=id;
+  const body=document.getElementById('mstBody');
+  const lab=(t,inp)=>`<div style="margin-bottom:10px"><label class="fld">${t}</label>${inp}</div>`;
+  if(kind==='item'){
+    const it=id?byId(DB.items,id):{name:'',unit:'',lo:'',hi:''};
+    document.getElementById('mstTitle').textContent=id?'시험항목 수정':'시험항목 추가';
+    body.innerHTML=lab('항목명',`<input id="m_name" style="width:100%" value="${esc(it.name)}">`)
+      +lab('단위',`<input id="m_unit" style="width:100%" value="${esc(it.unit)}">`)
+      +`<div class="grid2">`+lab('기준(저)',`<input id="m_lo" style="width:100%" value="${esc(it.lo)}">`)
+      +lab('기준(고)',`<input id="m_hi" style="width:100%" value="${esc(it.hi)}">`)+`</div>`;
+  }else if(kind==='region'){
+    const g=id?byId(DB.regions,id):{name:''};
+    document.getElementById('mstTitle').textContent=id?'지역 수정':'지역 추가';
+    body.innerHTML=lab('지역명',`<input id="m_name" style="width:100%" value="${esc(g.name)}">`);
+  }else{
+    const t=id?byId(DB.types,id):{name:''}; const sel=id?(DB.typeItems[id]||[]):[];
+    document.getElementById('mstTitle').textContent=id?'검체명 수정':'검체명 추가';
+    body.innerHTML=lab('검체명',`<input id="m_name" style="width:100%" value="${esc(t.name)}">`)
+      +`<label class="fld">포함할 시험항목</label><div class="prevbox" style="max-height:260px">`
+      +DB.items.map(it=>`<label style="display:block;padding:2px 0"><input type="checkbox" class="m_chk" value="${it.id}" ${sel.includes(it.id)?'checked':''}> ${esc(it.name)}</label>`).join('')+`</div>`;
+  }
+  document.getElementById('mstMask').classList.add('on');
+  document.getElementById('m_name').focus();
+}
+function closeMst(){ document.getElementById('mstMask').classList.remove('on'); }
+function saveMst(){
+  const g=id=>document.getElementById(id).value.trim();
+  const name=g('m_name'); if(!name)return alert('이름을 입력하세요');
+  if(mstKind==='item'){
+    const rec={name,unit:g('m_unit'),lo:g('m_lo'),hi:g('m_hi')};
+    if(mstId)Object.assign(byId(DB.items,mstId),rec); else DB.items.push(Object.assign({id:nextId(DB.items)},rec));
+  }else if(mstKind==='region'){
+    if(mstId)byId(DB.regions,mstId).name=name; else DB.regions.push({id:nextId(DB.regions),name});
+  }else{
+    const ids=[...document.querySelectorAll('.m_chk:checked')].map(x=>+x.value);
+    if(mstId){ byId(DB.types,mstId).name=name; DB.typeItems[mstId]=ids; }
+    else{ const id=nextId(DB.types); DB.types.push({id,fid:1,name}); DB.typeItems[id]=ids; }
+  }
+  save(); closeMst(); renderMaster();
+}
+function delMst(kind,id){
+  if(kind==='item'){
+    if(DB.receptions.some(r=>r.items.some(ri=>ri.itemId===id)))return alert('접수건에서 사용 중인 시험항목은 삭제할 수 없습니다');
+    if(!confirm('이 시험항목을 삭제할까요? (검체명에서도 빠집니다)'))return;
+    DB.items=DB.items.filter(x=>x.id!==id);
+    Object.keys(DB.typeItems).forEach(k=>{ DB.typeItems[k]=DB.typeItems[k].filter(x=>x!==id); });
+  }else if(kind==='region'){
+    if(DB.receptions.some(r=>r.regionId===id))return alert('접수건에서 사용 중인 지역은 삭제할 수 없습니다');
+    if(!confirm('이 지역을 삭제할까요?'))return;
+    DB.regions=DB.regions.filter(x=>x.id!==id);
+  }else{
+    if(DB.receptions.some(r=>r.typeId===id))return alert('접수건에서 사용 중인 검체명은 삭제할 수 없습니다');
+    if(!confirm('이 검체명을 삭제할까요?'))return;
+    DB.types=DB.types.filter(x=>x.id!==id); delete DB.typeItems[id];
+  }
+  save(); renderMaster();
+}
+
+/* ===================== 시작 ===================== */
+renderDbInfo(); render();
+</script>
+</body>
+</html>
