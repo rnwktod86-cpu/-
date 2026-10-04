@@ -173,12 +173,11 @@ function seed(){
     fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
     purposes:[{id:1,name:'정기검사'},{id:2,name:'참고'}],
     types:[
-      {id:1,fid:2,name:'먹는물(법정)'},{id:2,fid:2,name:'먹는물(참고)'},
-      {id:3,fid:1,name:'지하수질(음용)'},{id:4,fid:1,name:'하천수질'},
       {id:5,fid:1,name:'지하수(음용수)'},{id:6,fid:1,name:'지하수(생활용수)'},
-      {id:7,fid:1,name:'지하수(농.어업용수)'},{id:8,fid:1,name:'저수조'},
-      {id:9,fid:1,name:'급수관'},{id:10,fid:1,name:'수영장수'},
-      {id:11,fid:1,name:'물놀이수경시설'}],
+      {id:7,fid:1,name:'지하수(농-어업용수)'},{id:8,fid:1,name:'저수조'},
+      {id:9,fid:1,name:'급수관수'},{id:12,fid:1,name:'마을상수도'},
+      {id:13,fid:1,name:'학교정수기'},{id:14,fid:1,name:'목욕탕'},
+      {id:15,fid:1,name:'친환경인증'}],
     items:[
       {id:1,name:'수소이온농도(pH)',unit:'',lo:'5.8',hi:'8.5'},
       {id:2,name:'탁도',unit:'NTU',lo:'',hi:'1.0'},
@@ -186,8 +185,8 @@ function seed(){
       {id:4,name:'질산성질소',unit:'mg/L',lo:'',hi:'10'},
       {id:5,name:'일반세균',unit:'CFU/mL',lo:'',hi:'100'},
       {id:6,name:'총대장균군',unit:'',lo:'',hi:'불검출'}],
-    typeItems:{ 1:[1,2,3,4,5,6], 2:[1,2,6], 3:[1,2,4,6], 4:[1,2,4],
-      5:[1,2,4,6], 6:[1,2,4,6], 7:[1,2,4,6], 8:[1,2,3,6], 9:[1,2,3,6], 10:[1,2,3,6], 11:[1,2,3,6] },
+    typeItems:{ 5:[1,2,4,6], 6:[1,2,4,6], 7:[1,2,4,6], 8:[1,2,3,6], 9:[1,2,3,6],
+      12:[1,2,3,6], 13:[1,2,3,6], 14:[1,2,3,6], 15:[1,2,4,6] },
     inspectors:[
       {id:1,name:'분석실장'},{id:2,name:'검사원A'},{id:3,name:'검사원B'}],
     clients:[
@@ -202,8 +201,12 @@ function load(){ try{ const s=localStorage.getItem(KEY); return s?migrate(JSON.p
 function migrate(d){ const sd=seed();
   if(!d.purposeV2){ d.purposeV2=1; d.purposes=sd.purposes; // 검사목적: 정기검사/참고 (구 검사분야 값 이어받음)
     d.receptions.forEach(r=>{ r.purposeId=(r.fieldId===2)?2:1; }); }
-  sd.types.forEach(t=>{ if(!d.types.some(x=>x.id===t.id||x.name===t.name)){
-    d.types.push(t); d.typeItems[t.id]=sd.typeItems[t.id]; } });
+  if(!d.typeV2){ d.typeV2=1; // 검체명 목록 교체: 접수건에서 쓰던 옛 항목만 뒤에 남김
+    const used=new Set(d.receptions.map(r=>r.typeId));
+    const keep=d.types.filter(t=>used.has(t.id)&&!sd.types.some(n=>n.id===t.id));
+    d.types=sd.types.concat(keep);
+    Object.keys(d.typeItems).forEach(k=>{ if(!d.types.some(t=>t.id===+k)) delete d.typeItems[k]; });
+    sd.types.forEach(t=>{ if(!d.typeItems[t.id]) d.typeItems[t.id]=sd.typeItems[t.id]; }); }
   return d; }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
 function renderDbInfo(){ document.getElementById('dbinfo').textContent =
