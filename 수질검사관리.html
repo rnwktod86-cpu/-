@@ -129,30 +129,6 @@
   </div>
 </div>
 
-<!-- 결과 등록 모달 -->
-<div class="mask" id="resMask">
-  <div class="modal" style="width:720px">
-    <h2>결과 등록 <span id="resHead" style="font-weight:400;color:var(--muted);font-size:12.5px"></span></h2>
-    <div class="body">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <label class="fld" style="margin:0">검사원</label>
-        <select id="r_insp" style="width:160px"></select>
-        <span class="sp" style="flex:1"></span>
-        <span id="resSummary" style="font-size:12.5px;color:var(--muted)"></span>
-      </div>
-      <table>
-        <thead><tr><th style="width:32%">시험항목</th><th>단위</th><th>기준(저~고)</th><th style="width:22%">측정값</th><th>판정</th></tr></thead>
-        <tbody id="r_rows"></tbody>
-      </table>
-      <div class="note">측정값에 <b>&lt;0.1</b>, <b>불검출</b> 같은 표기도 인식합니다. 기준(저·고) 모두 있으면 범위 판정, 한쪽만 있으면 초과 판정.</div>
-    </div>
-    <div class="foot">
-      <button onclick="closeRes()">닫기</button>
-      <button class="pri" onclick="saveRes()">저장</button>
-    </div>
-  </div>
-</div>
-
 <!-- 기준정보 편집 모달 -->
 <div class="mask" id="mstMask">
   <div class="modal" style="width:520px">
@@ -263,7 +239,6 @@ function renderReception(){
       <button onclick="renderReception()">조회</button>
       <span class="sp" style="flex:1"></span>
       <button class="pri" onclick="openRec(null)">신규 등록</button>
-      <button onclick="openResFromSel()">결과 등록</button>
       <button onclick="editSel()">수정</button>
       <button class="dgr" onclick="delSel()">삭제</button>
     </div>
@@ -290,7 +265,6 @@ function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${
 function pickRec(id){ selRec=id; document.querySelectorAll('#recBody tr').forEach(tr=>
   tr.classList.toggle('sel', +tr.dataset.id===id)); }
 function editSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRec(selRec); }
-function openResFromSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRes(selRec); }
 function delSel(){ if(!selRec)return alert('접수건을 선택하세요');
   const r=byId(DB.receptions,selRec);
   if(r.status==='ISSUED')return alert('발급된 접수건은 삭제할 수 없습니다');
@@ -377,53 +351,6 @@ function saveRec(){
     selRec=id;
   }
   save(); closeRec(); renderReception();
-}
-
-/* ===================== 결과 등록 ===================== */
-let resRecId=null;
-function openRes(id){
-  resRecId=id; const r=byId(DB.receptions,id);
-  const cl=clientName(r);
-  document.getElementById('resHead').textContent=`· ${r.date} · ${cl}`;
-  fillSelect(document.getElementById('r_insp'), DB.inspectors,null,'(검사원 선택)');
-  drawResRows();
-  document.getElementById('resMask').classList.add('on');
-}
-function drawResRows(){
-  const r=byId(DB.receptions,resRecId);
-  document.getElementById('r_rows').innerHTML = r.items.map((ri,idx)=>{
-    const it=byId(DB.items,ri.itemId);
-    return `<tr>
-      <td>${it.name}</td><td>${it.unit||'-'}</td><td style="color:#666">${it.lo||'-'} ~ ${it.hi||'-'}</td>
-      <td><input value="${ri.meas||''}" data-idx="${idx}" oninput="onMeas(this)" style="width:100%"></td>
-      <td id="jc_${idx}"></td></tr>`;
-  }).join('');
-  r.items.forEach((_,i)=>updJudge(i));
-  updResSummary();
-}
-function onMeas(inp){ const i=+inp.dataset.idx; byId(DB.receptions,resRecId).items[i].meas=inp.value;
-  updJudge(i); updResSummary(); }
-function updJudge(i){
-  const r=byId(DB.receptions,resRecId), ri=r.items[i], it=byId(DB.items,ri.itemId);
-  const [j,f]=evaluate(ri.meas,it.lo,it.hi); ri.judge=j; ri.fail=f;
-  document.getElementById('jc_'+i).innerHTML=judgePill(j);
-}
-function updResSummary(){
-  const r=byId(DB.receptions,resRecId);
-  let ok=0,bad=0,none=0,empty=0;
-  r.items.forEach(ri=>{ if((ri.meas||'').trim()==='')empty++;
-    else if(ri.judge==='적합')ok++; else if(ri.judge==='부적합')bad++; else none++; });
-  document.getElementById('resSummary').innerHTML=
-    `적합 <b style="color:var(--ok)">${ok}</b> · 부적합 <b style="color:var(--bad)">${bad}</b> · 무판정 ${none} · 미입력 ${empty}`;
-}
-function closeRes(){ document.getElementById('resMask').classList.remove('on'); }
-function saveRes(){
-  const r=byId(DB.receptions,resRecId);
-  const insp=+document.getElementById('r_insp').value||null;
-  r.items.forEach(ri=>{ if((ri.meas||'').trim()!==''){ ri.inspId=insp; ri.done=true; } });
-  const allDone = r.items.every(ri=>ri.done);
-  if(r.status!=='ISSUED') r.status = allDone?'DONE':'TESTING';
-  save(); closeRes(); renderReception();
 }
 
 /* ===================== 통계·현황 ===================== */
