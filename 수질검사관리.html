@@ -411,19 +411,17 @@ function renderStat(){
   const c=document.getElementById('content');
   const recs=DB.receptions;
   const cntBy=st=>recs.filter(r=>r.status===st).length;
-  let ok=0,bad=0;
-  const fails=[];
-  recs.forEach(r=>r.items.forEach(ri=>{ if(ri.judge==='적합')ok++; if(ri.judge==='부적합'){bad++;
-    const it=byId(DB.items,ri.itemId); fails.push({no:clientName(r)||r.date,item:it.name,meas:ri.meas,hi:it.hi}); } }));
+  const fixed=recs.filter(r=>r.resv).length;
+  const unset=recs.filter(r=>!r.resv).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
   // 검체명별 접수 건수
   const byType={}; recs.forEach(r=>{ const t=byId(DB.types,r.typeId); const k=t?t.name:'(미지정)';
     byType[k]=(byType[k]||0)+1; });
   c.innerHTML=`
     <div class="stat">
       <div class="box"><div class="n">${recs.length}</div><div class="l">총 접수건</div></div>
-      <div class="box"><div class="n" style="color:var(--warn)">${cntBy('TESTING')+cntBy('RECEIVED')}</div><div class="l">진행중(접수/검사중)</div></div>
-      <div class="box"><div class="n" style="color:var(--ok)">${cntBy('DONE')+cntBy('ISSUED')}</div><div class="l">완료·발급</div></div>
-      <div class="box"><div class="n" style="color:var(--bad)">${bad}</div><div class="l">부적합 항목수</div></div>
+      <div class="box"><div class="n" style="color:var(--warn)">${cntBy('RECEIVED')}</div><div class="l">진행중(접수)</div></div>
+      <div class="box"><div class="n" style="color:var(--ok)">${fixed}</div><div class="l">채수예정일 확정</div></div>
+      <div class="box"><div class="n" style="color:var(--bad)">${unset.length}</div><div class="l">채수예정일 미지정</div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="card" style="padding:0">
@@ -433,10 +431,10 @@ function renderStat(){
           : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
       </div>
       <div class="card" style="padding:0">
-        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">부적합 항목 (통보 대상)</div>
-        <table><tbody>${ fails.length? fails.map(f=>
-          `<tr><td>${f.no}</td><td>${f.item}</td><td style="color:var(--bad)">${f.meas} <span style="color:#999">(기준 ${f.hi})</span></td></tr>`).join('')
-          : `<tr><td class="empty">부적합 항목 없음</td></tr>` }</tbody></table>
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">채수예정일 미지정 접수건</div>
+        <table><tbody>${ unset.length? unset.map(r=>{ const t=byId(DB.types,r.typeId);
+          return `<tr><td>${esc(clientName(r))||'-'}</td><td>${t?esc(t.name):'-'}</td><td style="color:#999">접수 ${r.date}</td></tr>`; }).join('')
+          : `<tr><td class="empty">미지정 접수건 없음</td></tr>` }</tbody></table>
       </div>
     </div>`;
 }
