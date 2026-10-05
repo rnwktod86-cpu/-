@@ -105,8 +105,10 @@
           <input id="f_cs" style="width:100%" placeholder="입력하면 이전 접수 고객이 나타납니다" autocomplete="off" oninput="searchCust()">
           <div id="f_cs_res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #c4ccd6;border-radius:5px;max-height:220px;overflow:auto;box-shadow:0 6px 18px rgba(0,0,0,.15)"></div></div>
         <div class="full"><label class="fld">접수일</label><input type="date" id="f_date"></div>
-        <div><label class="fld">상호/명칭</label><input id="f_client"></div>
-        <div><label class="fld">대표자</label><input id="f_rep"></div>
+        <div class="full"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 14px">
+          <div><label class="fld">상호/명칭</label><input id="f_client" style="width:100%"></div>
+          <div><label class="fld">대표자</label><input id="f_rep" style="width:100%"></div>
+          <div><label class="fld">의뢰인</label><input id="f_receiver" style="width:100%"></div></div></div>
         <div class="full"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 14px">
           <div><label class="fld">일반전화</label><input id="f_tel" style="width:100%"></div>
           <div><label class="fld">팩스</label><input id="f_fax" style="width:100%"></div>
@@ -117,7 +119,6 @@
         <div><label class="fld">검체명</label><select id="f_type"></select></div>
         <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
-        <div><label class="fld">의뢰인</label><input id="f_receiver"></div>
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
         <div class="full"><label class="fld">메모 사항</label><textarea id="f_memo" rows="4" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #c4ccd6;border-radius:5px"></textarea></div>
       </div>
