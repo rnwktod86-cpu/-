@@ -100,14 +100,14 @@
   <div class="side">
     <div class="brand"><span class="dot"></span> 수질검사 관리</div>
     <div class="nav" id="nav">
-      <a data-v="reception" class="active">접수 관리</a>
+      <a data-v="reception" class="active">고객등록</a>
       <a data-v="calendar">캘린더</a>
       <a data-v="stat">통계·현황</a>
       <a data-v="trash">삭제 내역</a>
     </div>
   </div>
   <div class="main">
-    <div class="topbar"><h1 id="viewTitle">접수 관리</h1>
+    <div class="topbar"><h1 id="viewTitle">고객등록</h1>
       <span class="sp" style="flex:1"></span>
       <span style="font-size:12px;color:var(--muted)" id="dbinfo"></span>
     </div>
@@ -250,7 +250,7 @@ function pill(st){ const [c,t]=statusPill[st]||['p-wait',st]; return `<span clas
 function judgePill(j){ const c=j==='적합'?'j-ok':j==='부적합'?'j-bad':'j-none'; return `<span class="pill ${c}">${j||'-'}</span>`; }
 
 /* ===================== 라우팅 ===================== */
-const titles={reception:'접수 관리',calendar:'채수 일정 캘린더',stat:'통계·현황',trash:'삭제 내역'};
+const titles={reception:'고객등록',calendar:'채수 일정 캘린더',stat:'통계·현황',trash:'삭제 내역'};
 let view='reception';
 document.getElementById('nav').addEventListener('click',e=>{
   const a=e.target.closest('a'); if(!a)return;
