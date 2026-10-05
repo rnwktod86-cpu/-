@@ -148,7 +148,9 @@ function seed(){
   return {
     seq:{}, // 연도별 접수 일련번호
     fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
-    purposes:[{id:1,name:'정기검사'},{id:2,name:'참고'}],
+    purposes:[{id:1,name:'지하수법'},{id:2,name:'먹는물관리법'},{id:3,name:'수도법'},{id:4,name:'학교보건법'},
+      {id:5,name:'식품위생법'},{id:6,name:'체육시설의 이용에 관한 법률'},{id:7,name:'공중위생법'},
+      {id:8,name:'친환경농업육성법'},{id:9,name:'기타'}],
     types:[
       {id:5,fid:1,name:'지하수(음용수)'},{id:6,fid:1,name:'지하수(생활용수)'},
       {id:7,fid:1,name:'지하수(농-어업용수)'},{id:8,fid:1,name:'저수조'},
@@ -184,6 +186,8 @@ function migrate(d){ const sd=seed();
     d.types=sd.types.concat(keep);
     Object.keys(d.typeItems).forEach(k=>{ if(!d.types.some(t=>t.id===+k)) delete d.typeItems[k]; });
     sd.types.forEach(t=>{ if(!d.typeItems[t.id]) d.typeItems[t.id]=sd.typeItems[t.id]; }); }
+  if(!d.purposeV3){ d.purposeV3=1; d.purposes=sd.purposes; // 검사목적: 관련 법령 목록으로 교체, 기존 접수건은 '기타'로
+    d.receptions.forEach(r=>{ r.purposeId=9; }); }
   return d; }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
 function renderDbInfo(){ document.getElementById('dbinfo').textContent =
