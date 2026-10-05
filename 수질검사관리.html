@@ -225,7 +225,7 @@ document.getElementById('nav').addEventListener('click',e=>{
 function render(){ ({reception:renderReception,stat:renderStat}[view])(); }
 
 /* ===================== 접수 관리 ===================== */
-let selRec=null;
+const selIds=new Set(); // 체크된 접수건
 function renderReception(){
   const c=document.getElementById('content');
   c.innerHTML=`
@@ -247,7 +247,7 @@ function renderReception(){
       <button class="pri" onclick="exportXlsx()">엑셀 다운로드</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>항목</th><th>채수예정일</th><th>상태</th></tr></thead>
+      <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>항목</th><th>채수예정일</th><th>상태</th></tr></thead>
       <tbody id="recBody"></tbody>
     </table></div>`;
   initExportBar();
@@ -257,14 +257,16 @@ function renderReception(){
   const list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value)
     .sort((a,b)=> b.date<a.date?-1:b.date>a.date?1:b.id-a.id);
   const body=c.querySelector('#recBody');
-  if(!list.length){ body.innerHTML=`<tr><td colspan="6" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
+  if(!list.length){ body.innerHTML=`<tr><td colspan="7" class="empty">해당 기간 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; return; }
   body.innerHTML=list.map(r=>{
     const t=byId(DB.types,r.typeId), cl=clientName(r);
-    return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selRec===r.id?'sel':''}">
+    return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selIds.has(r.id)?'sel':''}">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="rowchk" ${selIds.has(r.id)?'checked':''} onchange="toggleRec(${r.id},this.checked)"></td>
       <td>${r.date}</td>
       <td>${cl||'-'}</td><td>${t?t.name:'-'}</td>
       <td>${r.items.length}</td><td>${r.resv||'-'}</td><td>${schedPill(r)}</td></tr>`;
   }).join('');
+  syncSel();
 }
 /* 지역별·채수예정일 지정 엑셀 다운로드 (지역은 채수장소 → 의뢰인주소의 시·군·구에서 추출) */
 const XS={region:'',from:'',to:''};
@@ -302,14 +304,22 @@ function exportXlsx(){
   }
 }
 function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
-function pickRec(id){ selRec=id; document.querySelectorAll('#recBody tr').forEach(tr=>
-  tr.classList.toggle('sel', +tr.dataset.id===id)); }
-function editSel(){ if(!selRec)return alert('접수건을 선택하세요'); openRec(selRec); }
-function delSel(){ if(!selRec)return alert('접수건을 선택하세요');
-  const r=byId(DB.receptions,selRec);
-  if(r.status==='ISSUED')return alert('발급된 접수건은 삭제할 수 없습니다');
-  if(!confirm('선택한 접수건을 삭제할까요?'))return;
-  DB.receptions=DB.receptions.filter(x=>x.id!==selRec); selRec=null; save(); renderReception(); }
+function syncSel(){
+  document.querySelectorAll('#recBody tr[data-id]').forEach(tr=>{ const on=selIds.has(+tr.dataset.id);
+    tr.classList.toggle('sel',on); tr.querySelector('.rowchk').checked=on; });
+  const all=document.querySelectorAll('#recBody .rowchk'), ca=document.getElementById('chkAll');
+  if(ca) ca.checked=all.length>0&&[...all].every(x=>x.checked); }
+function toggleRec(id,on){ on?selIds.add(id):selIds.delete(id); syncSel(); }
+function toggleAll(on){ document.querySelectorAll('#recBody tr[data-id]').forEach(tr=>{
+  on?selIds.add(+tr.dataset.id):selIds.delete(+tr.dataset.id); }); syncSel(); }
+function pickRec(id){ toggleRec(id,!selIds.has(id)); } // 행 클릭도 체크 토글
+function editSel(){ if(!selIds.size)return alert('수정할 접수건을 체크하세요');
+  if(selIds.size>1)return alert('수정은 한 건씩만 가능합니다. 하나만 체크하세요'); openRec([...selIds][0]); }
+function delSel(){ if(!selIds.size)return alert('삭제할 접수건을 체크하세요');
+  const rs=[...selIds].map(id=>byId(DB.receptions,id)).filter(Boolean);
+  if(rs.some(r=>r.status==='ISSUED'))return alert('발급된 접수건은 삭제할 수 없습니다');
+  if(!confirm(`체크한 접수건 ${rs.length}건을 삭제할까요?`))return;
+  DB.receptions=DB.receptions.filter(x=>!selIds.has(x.id)); selIds.clear(); save(); renderReception(); }
 
 /* 접수 등록/수정 모달 */
 let editRecId=null;
@@ -388,7 +398,7 @@ function saveRec(){
     const ids=DB.typeItems[typeId]||[];
     const items=ids.map((iid,i)=>({itemId:iid, meas:'', judge:'', fail:null, inspId:null, order:i}));
     DB.receptions.push(Object.assign({id,status:'RECEIVED',items},rec));
-    selRec=id;
+    selIds.clear(); selIds.add(id);
   }
   save(); closeRec(); renderReception();
 }
