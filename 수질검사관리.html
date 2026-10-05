@@ -87,7 +87,6 @@
     <div class="nav" id="nav">
       <a data-v="reception" class="active">접수 관리</a>
       <a data-v="stat">통계·현황</a>
-      <a data-v="master">기준정보</a>
     </div>
   </div>
   <div class="main">
@@ -130,18 +129,6 @@
     <div class="foot">
       <button onclick="closeRec()">취소</button>
       <button class="pri" onclick="saveRec()">저장</button>
-    </div>
-  </div>
-</div>
-
-<!-- 기준정보 편집 모달 -->
-<div class="mask" id="mstMask">
-  <div class="modal" style="width:520px">
-    <h2 id="mstTitle"></h2>
-    <div class="body" id="mstBody"></div>
-    <div class="foot">
-      <button onclick="closeMst()">취소</button>
-      <button class="pri" onclick="saveMst()">저장</button>
     </div>
   </div>
 </div>
@@ -226,7 +213,7 @@ function pill(st){ const [c,t]=statusPill[st]||['p-wait',st]; return `<span clas
 function judgePill(j){ const c=j==='적합'?'j-ok':j==='부적합'?'j-bad':'j-none'; return `<span class="pill ${c}">${j||'-'}</span>`; }
 
 /* ===================== 라우팅 ===================== */
-const titles={reception:'접수 관리',stat:'통계·현황',master:'기준정보'};
+const titles={reception:'접수 관리',stat:'통계·현황'};
 let view='reception';
 document.getElementById('nav').addEventListener('click',e=>{
   const a=e.target.closest('a'); if(!a)return;
@@ -235,7 +222,7 @@ document.getElementById('nav').addEventListener('click',e=>{
   document.getElementById('viewTitle').textContent=titles[view];
   render();
 });
-function render(){ ({reception:renderReception,stat:renderStat,master:renderMaster}[view])(); }
+function render(){ ({reception:renderReception,stat:renderStat}[view])(); }
 
 /* ===================== 접수 관리 ===================== */
 let selRec=null;
@@ -439,82 +426,8 @@ function renderStat(){
     </div>`;
 }
 
-/* ===================== 기준정보 (추가·수정·삭제) ===================== */
+/* ===================== 공통 ===================== */
 const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-const nextId=arr=>arr.reduce((m,x)=>Math.max(m,x.id),0)+1;
-function renderMaster(){
-  const c=document.getElementById('content');
-  const hd=(t,btn)=>`<div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line);display:flex;align-items:center">
-    <span style="flex:1">${t}</span>${btn}</div>`;
-  const ops=(kind,id)=>`<td style="white-space:nowrap;text-align:right">
-    <button onclick="openMst('${kind}',${id})">수정</button>
-    <button class="dgr" onclick="delMst('${kind}',${id})">삭제</button></td>`;
-  c.innerHTML=`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
-      <div class="card" style="padding:0">
-        ${hd('시험항목 · 기준',`<button class="pri" onclick="openMst('item',null)">항목 추가</button>`)}
-        <table><thead><tr><th>항목명</th><th>단위</th><th>기준(저)</th><th>기준(고)</th><th></th></tr></thead>
-        <tbody>${DB.items.map(it=>`<tr><td>${esc(it.name)}</td><td>${esc(it.unit)||'-'}</td><td>${esc(it.lo)||'-'}</td><td>${esc(it.hi)||'-'}</td>${ops('item',it.id)}</tr>`).join('')}</tbody></table>
-      </div>
-      <div class="card" style="padding:0">
-        ${hd('검체명 → 시험항목',`<button class="pri" onclick="openMst('type',null)">검체명 추가</button>`)}
-        <table><thead><tr><th>검체명</th><th>포함 항목</th><th></th></tr></thead>
-        <tbody>${DB.types.map(t=>{ const ids=DB.typeItems[t.id]||[];
-          return `<tr><td>${esc(t.name)}</td><td style="color:#555">${ids.map(id=>{const it=byId(DB.items,id);return it?esc(it.name):'';}).filter(Boolean).join(', ')||'-'}</td>${ops('type',t.id)}</tr>`;}).join('')}</tbody></table>
-      </div>
-    </div>
-    <div class="note" style="margin-top:12px">※ 실제 규정(먹는물 수질기준, 수질오염공정시험기준 등)에 맞게 기준값을 조정해 사용하세요. 기준(저·고)을 비우면 해당 방향은 판정하지 않으며, 기준(고)에 <b>불검출</b>을 쓰면 불검출 판정을 합니다.</div>`;
-}
-let mstKind=null, mstId=null;
-function openMst(kind,id){
-  mstKind=kind; mstId=id;
-  const body=document.getElementById('mstBody');
-  const lab=(t,inp)=>`<div style="margin-bottom:10px"><label class="fld">${t}</label>${inp}</div>`;
-  if(kind==='item'){
-    const it=id?byId(DB.items,id):{name:'',unit:'',lo:'',hi:''};
-    document.getElementById('mstTitle').textContent=id?'시험항목 수정':'시험항목 추가';
-    body.innerHTML=lab('항목명',`<input id="m_name" style="width:100%" value="${esc(it.name)}">`)
-      +lab('단위',`<input id="m_unit" style="width:100%" value="${esc(it.unit)}">`)
-      +`<div class="grid2">`+lab('기준(저)',`<input id="m_lo" style="width:100%" value="${esc(it.lo)}">`)
-      +lab('기준(고)',`<input id="m_hi" style="width:100%" value="${esc(it.hi)}">`)+`</div>`;
-  }else{
-    const t=id?byId(DB.types,id):{name:''}; const sel=id?(DB.typeItems[id]||[]):[];
-    document.getElementById('mstTitle').textContent=id?'검체명 수정':'검체명 추가';
-    body.innerHTML=lab('검체명',`<input id="m_name" style="width:100%" value="${esc(t.name)}">`)
-      +`<label class="fld">포함할 시험항목</label><div class="prevbox" style="max-height:260px">`
-      +DB.items.map(it=>`<label style="display:block;padding:2px 0"><input type="checkbox" class="m_chk" value="${it.id}" ${sel.includes(it.id)?'checked':''}> ${esc(it.name)}</label>`).join('')+`</div>`;
-  }
-  document.getElementById('mstMask').classList.add('on');
-  document.getElementById('m_name').focus();
-}
-function closeMst(){ document.getElementById('mstMask').classList.remove('on'); }
-function saveMst(){
-  const g=id=>document.getElementById(id).value.trim();
-  const name=g('m_name'); if(!name)return alert('이름을 입력하세요');
-  if(mstKind==='item'){
-    const rec={name,unit:g('m_unit'),lo:g('m_lo'),hi:g('m_hi')};
-    if(mstId)Object.assign(byId(DB.items,mstId),rec); else DB.items.push(Object.assign({id:nextId(DB.items)},rec));
-  }else{
-    const ids=[...document.querySelectorAll('.m_chk:checked')].map(x=>+x.value);
-    if(mstId){ byId(DB.types,mstId).name=name; DB.typeItems[mstId]=ids; }
-    else{ const id=nextId(DB.types); DB.types.push({id,fid:1,name}); DB.typeItems[id]=ids; }
-  }
-  save(); closeMst(); renderMaster();
-}
-function delMst(kind,id){
-  if(kind==='item'){
-    if(DB.receptions.some(r=>r.items.some(ri=>ri.itemId===id)))return alert('접수건에서 사용 중인 시험항목은 삭제할 수 없습니다');
-    if(!confirm('이 시험항목을 삭제할까요? (검체명에서도 빠집니다)'))return;
-    DB.items=DB.items.filter(x=>x.id!==id);
-    Object.keys(DB.typeItems).forEach(k=>{ DB.typeItems[k]=DB.typeItems[k].filter(x=>x!==id); });
-  }else{
-    if(DB.receptions.some(r=>r.typeId===id))return alert('접수건에서 사용 중인 검체명은 삭제할 수 없습니다');
-    if(!confirm('이 검체명을 삭제할까요?'))return;
-    DB.types=DB.types.filter(x=>x.id!==id); delete DB.typeItems[id];
-  }
-  save(); renderMaster();
-}
-
 /* ===================== 시작 ===================== */
 renderDbInfo(); render();
 </script>
