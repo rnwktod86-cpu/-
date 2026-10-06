@@ -287,6 +287,11 @@ function renderReception(){
       <label style="font-size:12px;color:var(--muted)">채수예정일</label>
       <input type="date" id="x_from" onchange="XS.from=this.value"><span>~</span><input type="date" id="x_to" onchange="XS.to=this.value">
       <button class="pri" onclick="exportXlsx()">엑셀 다운로드</button>
+      <span style="border-left:1px solid var(--line);height:22px;margin:0 6px"></span>
+      <b>엑셀 자료 업로드</b>
+      <button onclick="document.getElementById('xlsFile').click()">파일 선택</button>
+      <input type="file" id="xlsFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importXlsx(this)">
+      <span style="font-size:12px;color:var(--muted)">엑셀 다운로드 파일과 같은 열 이름(첫 행)을 사용합니다</span>
     </div>
     <div class="card"><table>
       <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>상호/명칭</th><th>시료종류</th><th>항목</th><th>채수예정일</th><th>상태</th></tr></thead>
@@ -357,6 +362,44 @@ function exportXlsx(){
     const blob=new Blob(['\ufeff'+[head].concat(rows).map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name+'.csv'; a.click();
   }
+}
+
+/* 엑셀 자료 업로드: 첫 행의 열 이름으로 매칭 (엑셀 다운로드 양식과 동일) */
+function normDate(v){
+  if(v==null||v==='')return '';
+  if(v instanceof Date)return v.getFullYear()+'-'+pad2(v.getMonth()+1)+'-'+pad2(v.getDate());
+  const m=String(v).trim().match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m?m[1]+'-'+pad2(+m[2])+'-'+pad2(+m[3]):'';
+}
+function importXlsx(inp){
+  const file=inp.files[0]; inp.value=''; if(!file)return;
+  if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
+  const fr=new FileReader();
+  fr.onload=e=>{
+    let rows;
+    try{ const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:'',raw:true}); }
+    catch(err){ return alert('파일을 읽을 수 없습니다: '+err.message); }
+    const S=(r,k)=>String(r[k]==null?'':r[k]).trim();
+    const list=rows.filter(r=>S(r,'상호/명칭')||S(r,'의뢰인주소')||S(r,'채수장소'));
+    if(!list.length)return alert('가져올 데이터가 없습니다. 첫 행에 “상호/명칭” 등 열 이름이 있는지 확인하세요');
+    if(!confirm(`${list.length}건을 접수 목록에 추가합니다. 계속할까요?`))return;
+    let id=DB.receptions.reduce((m,x)=>Math.max(m,x.id),0), unk=0;
+    list.forEach(r=>{
+      const pu=DB.purposes.find(x=>x.name===S(r,'검사목적')), ty=DB.types.find(x=>x.name===S(r,'시료종류'));
+      if((S(r,'검사목적')&&!pu)||(S(r,'시료종류')&&!ty))unk++;
+      const typeId=ty?ty.id:null;
+      DB.receptions.push({id:++id,status:'RECEIVED',
+        items:(DB.typeItems[typeId]||[]).map((iid,i)=>({itemId:iid,meas:'',judge:'',fail:null,inspId:null,order:i})),
+        purposeId:pu?pu.id:null, typeId, clientName:S(r,'상호/명칭'), date:normDate(r['접수일'])||today(),
+        place:S(r,'채수장소'), addr:S(r,'의뢰인주소'), tel:S(r,'일반전화'), fax:S(r,'팩스'), mobile:S(r,'휴대전화'),
+        rep:S(r,'대표자'), receiver:S(r,'의뢰인'), memo:S(r,'메모'), permit:S(r,'허가신고번호'),
+        resv:normDate(r['채수예정일']), sampler:S(r,'시료채취자')});
+    });
+    save(); renderReception();
+    alert(`${list.length}건을 추가했습니다.`+(unk?`\n(검사목적/시료종류가 목록과 일치하지 않는 ${unk}건은 해당 항목이 비어 있습니다)`:''));
+  };
+  fr.readAsArrayBuffer(file);
 }
 function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
 function syncSel(){
