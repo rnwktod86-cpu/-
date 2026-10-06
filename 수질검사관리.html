@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수질검사 관리 시스템</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --ink:#1f2430; --muted:#6b7280;
+    --line:#e3e6ea; --accent:#2f5aa8; --accent-d:#24457f;
+    --ok-bg:#e5f4ea; --ok:#1c7a41; --bad-bg:#fdeaea; --bad:#b3261e;
+    --warn-bg:#fdf3e0; --warn:#9a6a10; --sidebar:#2a3446;
+  }
+  body{ margin:0; font-family:"Malgun Gothic","맑은 고딕",AppleGothic,sans-serif;
+        background:var(--bg); color:var(--ink); font-size:14px; }
+  .app{ display:flex; min-height:100vh; }
+  /* 사이드바 */
+  .side{ width:200px; background:var(--sidebar); color:#dfe3ea; flex-shrink:0; }
+  .brand{ padding:16px 14px; font-size:15px; font-weight:700; border-bottom:1px solid #3a465c;
+          display:flex; align-items:center; gap:8px; }
+  .brand .dot{ width:10px; height:10px; border-radius:50%; background:#4d8de0; }
+  .nav a{ display:block; padding:11px 16px; color:#cbd2de; text-decoration:none; cursor:pointer;
+          border-left:3px solid transparent; font-size:13.5px; }
+  .nav a:hover{ background:#333f54; }
+  .nav a.active{ background:#333f54; border-left-color:#4d8de0; color:#fff; font-weight:600; }
+  /* 메인 */
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .topbar{ background:var(--panel); border-bottom:1px solid var(--line);
+           padding:10px 18px; display:flex; align-items:center; gap:10px; }
+  .topbar h1{ font-size:16px; margin:0; }
+  .content{ padding:18px; }
+  /* 공통 */
+  .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+  .toolbar .sp{ flex:1; }
+  button{ font-family:inherit; font-size:13px; padding:7px 13px; border:1px solid #c4ccd6;
+          background:#fff; border-radius:5px; cursor:pointer; }
+  button:hover{ background:#f0f3f7; }
+  button.pri{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.pri:hover{ background:var(--accent-d); }
+  button.dgr{ color:var(--bad); border-color:#e6b3b0; }
+  input,select{ font-family:inherit; font-size:13px; padding:6px 8px; border:1px solid #c4ccd6;
+                border-radius:5px; background:#fff; }
+  input:focus,select:focus{ outline:2px solid #bcd2f5; border-color:var(--accent); }
+  label.fld{ display:block; font-size:12px; color:var(--muted); margin:0 0 3px; }
+  table{ width:100%; border-collapse:collapse; background:#fff; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:13px; }
+  th{ background:#eef1f5; color:#40495a; font-weight:600; position:sticky; top:0; }
+  tbody tr:hover{ background:#f6f9fd; }
+  tr.sel{ background:#e8f0fc !important; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:8px; }
+  .pill{ font-size:11.5px; padding:2px 9px; border-radius:20px; display:inline-block; }
+  .p-wait{ background:#eceff3; color:#5b6472; }
+  .p-recv{ background:#e7effb; color:#2f5aa8; }
+  .p-test{ background:var(--warn-bg); color:var(--warn); }
+  .p-done{ background:var(--ok-bg); color:var(--ok); }
+  .p-issued{ background:#eae7fb; color:#5b46b3; }
+  .j-ok{ background:var(--ok-bg); color:var(--ok); }
+  .j-bad{ background:var(--bad-bg); color:var(--bad); }
+  .j-none{ background:#eef0f3; color:#8a919c; }
+  .fbtn{ font-size:10px; color:#9aa3b0; cursor:pointer; margin-left:3px; padding:1px 3px; border-radius:3px; }
+  .fbtn:hover{ background:#dfe5ee; } .fbtn.on{ color:#fff; background:var(--accent); }
+  .fpop{ position:absolute; z-index:60; background:#fff; border:1px solid #c4ccd6; border-radius:6px; min-width:170px;
+         max-height:280px; overflow:auto; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:4px 0; font-size:13px; }
+  .fpop label{ display:flex; align-items:center; gap:6px; padding:5px 12px; cursor:pointer; white-space:nowrap; }
+  .fpop label:hover{ background:#f0f5fd; } .fpop .fall{ border-bottom:1px solid var(--line); font-weight:600; }
+  .empty{ padding:40px; text-align:center; color:var(--muted); }
+  /* 모달 */
+  .mask{ position:fixed; inset:0; background:rgba(20,26,38,.45); display:none;
+         align-items:flex-start; justify-content:center; padding:36px 16px; z-index:50; overflow:auto; }
+  .mask.on{ display:flex; }
+  .modal{ background:#fff; border-radius:10px; width:640px; max-width:100%; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  .modal h2{ margin:0; font-size:15px; padding:14px 18px; border-bottom:1px solid var(--line); }
+  .modal .body{ padding:16px 18px; }
+  .modal .foot{ padding:12px 18px; border-top:1px solid var(--line); display:flex; gap:8px; justify-content:flex-end; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  .grid2 .full{ grid-column:1 / -1; }
+  .prevbox{ border:1px solid var(--line); border-radius:6px; padding:8px 10px; max-height:150px; overflow:auto; font-size:12.5px; color:#444; background:#fafbfc; }
+  .stat{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .stat .box{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px; }
+  .stat .box .n{ font-size:26px; font-weight:700; }
+  .stat .box .l{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .xbar{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:12px;
+         display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .xbar b{ font-size:12.5px; }
+  /* 캘린더 */
+  .cal{ display:grid; grid-template-columns:repeat(7,1fr); background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .cal .dow{ background:#eef1f5; padding:7px; text-align:center; font-weight:600; font-size:12.5px; border-bottom:1px solid var(--line); }
+  .cal .dow.sun,.cal .day.sun .dn{ color:var(--bad); } .cal .dow.sat,.cal .day.sat .dn{ color:var(--accent); }
+  .cal .day{ min-height:104px; padding:4px 5px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); cursor:pointer; min-width:0; }
+  .cal .day:nth-child(7n){ border-right:0; }
+  .cal .day:hover{ background:#f6f9fd; }
+  .cal .day.other{ background:#fafbfc; } .cal .day.other .dn{ opacity:.4; }
+  .cal .day.today{ background:#fff9e6; }
+  .cal .day.selday{ outline:2px solid var(--accent); outline-offset:-2px; }
+  .cal .dn{ font-size:12px; font-weight:600; margin-bottom:3px; }
+  .cal .ev{ font-size:11.5px; padding:2px 6px; margin-bottom:2px; border-radius:4px; background:#e7effb; color:#24457f;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+  .cal .ev.nosm{ background:#fdf3e0; color:#9a6a10; }
+  .cal .ev b{ font-weight:700; }
+  .cal .ev:hover{ background:#d3e2f8; }
+  .cal .more{ font-size:11px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="side">
+    <div class="brand"><span class="dot"></span> 수질검사 관리</div>
+    <div class="nav" id="nav">
+      <a data-v="reception" class="active">고객등록</a>
+      <a data-v="calendar">캘린더</a>
+      <a data-v="stat">통계·현황</a>
+      <a data-v="trash">삭제 내역</a>
+    </div>
+  </div>
+  <div class="main">
+    <div class="topbar"><h1 id="viewTitle">고객등록</h1>
+      <span class="sp" style="flex:1"></span>
+      <span style="font-size:12px;color:var(--muted)" id="dbinfo"></span>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- 접수 등록/수정 모달 -->
+<div class="mask" id="recMask">
+  <div class="modal">
+    <h2 id="recTitle">접수 등록</h2>
+    <div class="body">
+      <div class="grid2">
+        <div class="full" style="position:relative"><label class="fld">기존고객 검색 (상호·대표자·전화·주소)</label>
+          <input id="f_cs" style="width:100%" placeholder="입력하면 이전 접수 고객이 나타납니다" autocomplete="off" oninput="searchCust()">
+          <div id="f_cs_res" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;background:#fff;border:1px solid #c4ccd6;border-radius:5px;max-height:220px;overflow:auto;box-shadow:0 6px 18px rgba(0,0,0,.15)"></div></div>
+        <div class="full"><label class="fld">접수일</label><input type="date" id="f_date"></div>
+        <div class="full"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 14px">
+          <div><label class="fld">상호/명칭</label><input id="f_client" style="width:100%"></div>
+          <div><label class="fld">대표자</label><input id="f_rep" style="width:100%"></div>
+          <div><label class="fld">의뢰인</label><input id="f_receiver" style="width:100%"></div></div></div>
+        <div class="full"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 14px">
+          <div><label class="fld">일반전화</label><input id="f_tel" style="width:100%"></div>
+          <div><label class="fld">팩스</label><input id="f_fax" style="width:100%"></div>
+          <div><label class="fld">휴대전화</label><input id="f_mobile" style="width:100%"></div></div></div>
+        <div class="full"><label class="fld">의뢰인주소</label><input id="f_addr" style="width:100%"></div>
+        <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
+        <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
+        <div><label class="fld">검체명</label><select id="f_type"></select></div>
+        <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
+        <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
+        <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
+        <div class="full"><label class="fld">메모 사항</label><textarea id="f_memo" rows="4" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #c4ccd6;border-radius:5px"></textarea></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button onclick="closeRec()">취소</button>
+      <button class="pri" onclick="saveRec()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 사유 모달 -->
+<div class="mask" id="delMask">
+  <div class="modal" style="width:460px">
+    <h2>접수 삭제</h2>
+    <div class="body">
+      <div id="d_info" style="margin-bottom:10px;font-size:13px"></div>
+      <div style="margin-bottom:10px"><label class="fld">삭제 사유 <span style="color:var(--bad)">*</span></label>
+        <select id="d_reason" style="width:100%" onchange="document.getElementById('d_memo').placeholder=this.value==='기타'?'사유를 직접 입력하세요 (필수)':'상세 사유 (선택)'"></select></div>
+      <div><label class="fld">상세 사유</label>
+        <textarea id="d_memo" rows="3" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #c4ccd6;border-radius:5px" placeholder="상세 사유 (선택)"></textarea></div>
+    </div>
+    <div class="foot">
+      <button onclick="closeDel()">취소</button>
+      <button class="pri dgr" style="background:var(--bad);border-color:var(--bad);color:#fff" onclick="confirmDel()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== 데이터 계층 (localStorage 영속) ===================== */
+const KEY='nbdlab_db_v1';
+function seed(){
+  return {
+    seq:{}, // 연도별 접수 일련번호
+    fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
+    purposes:[{id:1,name:'지하수법'},{id:2,name:'먹는물관리법'},{id:3,name:'수도법'},{id:4,name:'학교보건법'},
+      {id:5,name:'식품위생법'},{id:6,name:'체육시설의 이용에 관한 법률'},{id:7,name:'공중위생법'},
+      {id:8,name:'친환경농업육성법'},{id:9,name:'기타'}],
+    types:[
+      {id:5,fid:1,name:'지하수(음용수)'},{id:6,fid:1,name:'지하수(생활용수)'},
+      {id:7,fid:1,name:'지하수(농-어업용수)'},{id:8,fid:1,name:'저수조'},
+      {id:9,fid:1,name:'급수관수'},{id:12,fid:1,name:'마을상수도'},
+      {id:13,fid:1,name:'학교정수기'},{id:14,fid:1,name:'목욕탕'},
+      {id:15,fid:1,name:'친환경인증'}],
+    items:[
+      {id:1,name:'수소이온농도(pH)',unit:'',lo:'5.8',hi:'8.5'},
+      {id:2,name:'탁도',unit:'NTU',lo:'',hi:'1.0'},
+      {id:3,name:'잔류염소',unit:'mg/L',lo:'',hi:'4.0'},
+      {id:4,name:'질산성질소',unit:'mg/L',lo:'',hi:'10'},
+      {id:5,name:'일반세균',unit:'CFU/mL',lo:'',hi:'100'},
+      {id:6,name:'총대장균군',unit:'',lo:'',hi:'불검출'}],
+    typeItems:{ 5:[1,2,4,6], 6:[1,2,4,6], 7:[1,2,4,6], 8:[1,2,3,6], 9:[1,2,3,6],
+      12:[1,2,3,6], 13:[1,2,3,6], 14:[1,2,3,6], 15:[1,2,4,6] },
+    inspectors:[
+      {id:1,name:'분석실장'},{id:2,name:'검사원A'},{id:3,name:'검사원B'}],
+    clients:[
+      {id:1,name:'○○아파트 관리사무소'},{id:2,name:'△△학교'},{id:3,name:'□□정수장'}],
+    receptions:[],
+    trash:[], // 삭제된 접수건(삭제 사유 포함)
+    certificates:[],
+    certSeq:0
+  };
+}
+let DB = load();
+function load(){ try{ const s=localStorage.getItem(KEY); return s?migrate(JSON.parse(s)):seed(); }catch(e){ return seed(); } }
+function migrate(d){ const sd=seed();
+  if(!d.purposeV2){ d.purposeV2=1; d.purposes=sd.purposes; // 검사목적: 정기검사/참고 (구 검사분야 값 이어받음)
+    d.receptions.forEach(r=>{ r.purposeId=(r.fieldId===2)?2:1; }); }
+  if(!d.typeV2){ d.typeV2=1; // 시료종류 목록 교체: 접수건에서 쓰던 옛 항목만 뒤에 남김
+    const used=new Set(d.receptions.map(r=>r.typeId));
+    const keep=d.types.filter(t=>used.has(t.id)&&!sd.types.some(n=>n.id===t.id));
+    d.types=sd.types.concat(keep);
+    Object.keys(d.typeItems).forEach(k=>{ if(!d.types.some(t=>t.id===+k)) delete d.typeItems[k]; });
+    sd.types.forEach(t=>{ if(!d.typeItems[t.id]) d.typeItems[t.id]=sd.typeItems[t.id]; }); }
+  if(!d.purposeV3){ d.purposeV3=1; d.purposes=sd.purposes; // 검사목적: 관련 법령 목록으로 교체, 기존 접수건은 '기타'로
+    d.receptions.forEach(r=>{ r.purposeId=9; }); }
+  if(!d.trash)d.trash=[];
+  return d; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
+function renderDbInfo(){ document.getElementById('dbinfo').textContent =
+  `접수 ${DB.receptions.length}건 · 데이터는 이 브라우저에 저장됨`; }
+
+// 의뢰인은 직접 입력(clientName). 예전 데이터의 clientId도 호환
+function clientName(r){ if(r.clientName!=null)return r.clientName; const c=byId(DB.clients,r.clientId); return c?c.name:''; }
+const byId=(arr,id)=>arr.find(x=>x.id===id);
+const today=()=>new Date().toISOString().slice(0,10);
+
+/* ===================== 판정 로직 (Delphi/Python 시연과 동일) ===================== */
+function tryNum(s){ let t=(s||'').trim(); if(t&&'<>≤≥'.includes(t[0]))t=t.slice(1).trim();
+  const v=parseFloat(t); return (t!==''&&!isNaN(v)&&isFinite(v))?{ok:true,v}:{ok:false}; }
+function evaluate(meas,lo,hi){
+  const tm=(meas||'').trim(), th=(hi||'').trim();
+  const M=tryNum(meas),L=tryNum(lo),H=tryNum(hi);
+  const below=tm!==''&&'<≤'.includes(tm[0]);
+  if(th==='불검출'||th==='불검출됨'){
+    if(tm==='')return['무판정',null];
+    if(below||tm==='불검출'||(M.ok&&M.v===0))return['적합',0];
+    return['부적합',1];
+  }
+  if(!M.ok)return['무판정',null];
+  if(L.ok&&M.v<L.v)return['부적합',1];
+  if(H.ok&&M.v>H.v)return['부적합',1];
+  if(L.ok||H.ok)return['적합',0];
+  return['무판정',null];
+}
+const statusPill={WAIT:['p-wait','대기'],RECEIVED:['p-recv','접수'],TESTING:['p-test','검사중'],DONE:['p-done','완료'],ISSUED:['p-issued','발급']};
+function pill(st){ const [c,t]=statusPill[st]||['p-wait',st]; return `<span class="pill ${c}">${t}</span>`; }
+function judgePill(j){ const c=j==='적합'?'j-ok':j==='부적합'?'j-bad':'j-none'; return `<span class="pill ${c}">${j||'-'}</span>`; }
+
+/* ===================== 라우팅 ===================== */
+const titles={reception:'고객등록',calendar:'채수 일정 캘린더',stat:'통계·현황',trash:'삭제 내역'};
+let view='reception';
+document.getElementById('nav').addEventListener('click',e=>{
+  const a=e.target.closest('a'); if(!a)return;
+  document.querySelectorAll('#nav a').forEach(x=>x.classList.remove('active'));
+  a.classList.add('active'); view=a.dataset.v;
+  document.getElementById('viewTitle').textContent=titles[view];
+  render();
+});
+function render(){ ({reception:renderReception,calendar:renderCalendar,stat:renderStat,trash:renderTrash}[view])(); }
+
+/* ===================== 접수 관리 ===================== */
+const selIds=new Set(); // 체크된 접수건
+function renderReception(){
+  const c=document.getElementById('content');
+  c.innerHTML=`
+    <div class="toolbar">
+      <label style="font-size:12px;color:var(--muted)">기간</label>
+      <input type="date" id="q_from"><span>~</span><input type="date" id="q_to">
+      <button onclick="renderRecRows()">조회</button>
+      <label style="font-size:12px;color:var(--muted)">지역</label>
+      <select id="q_region" onchange="RQ.region=this.value;renderRecRows()"></select>
+      <input id="q_kw" placeholder="지역·상호·주소·채수장소 검색" style="width:200px" oninput="RQ.kw=this.value;renderRecRows()">
+      <span class="sp" style="flex:1"></span>
+      <button class="pri" onclick="openRec(null)">신규 등록</button>
+      <button onclick="editSel()">수정</button>
+      <button class="dgr" onclick="delSel()">삭제</button>
+    </div>
+    <div class="xbar">
+      <b>엑셀 다운로드</b>
+      <label style="font-size:12px;color:var(--muted)">지역</label>
+      <select id="x_region" onchange="XS.region=this.value"></select>
+      <label style="font-size:12px;color:var(--muted)">채수예정일</label>
+      <input type="date" id="x_from" onchange="XS.from=this.value"><span>~</span><input type="date" id="x_to" onchange="XS.to=this.value">
+      <button class="pri" onclick="exportXlsx()">엑셀 다운로드</button>
+      <span style="border-left:1px solid var(--line);height:22px;margin:0 6px"></span>
+      <b>엑셀 업로드</b>
+      <button onclick="document.getElementById('xl_file').click()">파일 선택</button>
+      <button onclick="downloadTemplate()">업로드 양식</button>
+      <input type="file" id="xl_file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importXlsx(this)">
+    </div>
+    <div class="card"><table>
+      <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>지역 <span class="fbtn" id="fb_region" onclick="openFilter(event,'region')" title="체크로 필터">▼</span></th><th>상호/명칭 <span class="fbtn" id="fb_client" onclick="openFilter(event,'client')" title="체크로 필터">▼</span></th><th>검체명 <span class="fbtn" id="fb_type" onclick="openFilter(event,'type')" title="체크로 필터">▼</span></th><th>채수예정일 <span class="fbtn" id="fb_resv" onclick="openFilter(event,'resv')" title="체크로 필터">▼</span></th><th>상태 <span class="fbtn" id="fb_status" onclick="openFilter(event,'status')" title="체크로 필터">▼</span></th></tr></thead>
+      <tbody id="recBody"></tbody>
+    </table></div>`;
+  initExportBar();
+  const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
+  if(!from.value){ const d=new Date(); d.setDate(d.getDate()-30);
+    from.value=d.toISOString().slice(0,10); to.value=today(); }
+  const regs=[...new Set(DB.receptions.map(regionOf))].sort();
+  const rs=c.querySelector('#q_region');
+  rs.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  rs.value=regs.includes(RQ.region)?RQ.region:''; RQ.region=rs.value;
+  c.querySelector('#q_kw').value=RQ.kw;
+  renderRecRows();
+}
+/* 열 머리글 체크 필터: CF[열]=null이면 전체, Set이면 체크된 값만 표시 */
+const CF={region:null,client:null,type:null,resv:null,status:null};
+const COLS={region:r=>regionOf(r), client:r=>clientName(r)||'-',
+  type:r=>{ const t=byId(DB.types,r.typeId); return t?t.name:'-'; },
+  resv:r=>r.resv||'-', status:r=>r.resv?'일정 확정':'일정 미확정'};
+let FBASE=[], FKEY='', FVALS=[];
+function closeFilter(){ const o=document.getElementById('fpop'); if(o)o.remove(); }
+function openFilter(e,k){
+  e.stopPropagation(); const had=document.getElementById('fpop'); closeFilter(); if(had&&FKEY===k)return;
+  FKEY=k; FVALS=[...new Set(FBASE.map(COLS[k]))].sort();
+  const d=document.createElement('div'); d.id='fpop'; d.className='fpop'; d.onclick=ev=>ev.stopPropagation();
+  d.innerHTML=`<label class="fall"><input type="checkbox" id="fall" onchange="fAll(this.checked)"> (전체 선택)</label>`+
+    FVALS.map((v,i)=>`<label><input type="checkbox" class="fv" data-i="${i}" ${(!CF[k]||CF[k].has(v))?'checked':''} onchange="fApply()"> ${esc(v)}</label>`).join('');
+  document.body.appendChild(d);
+  const r=e.target.getBoundingClientRect(); d.style.left=(r.left+scrollX)+'px'; d.style.top=(r.bottom+scrollY+4)+'px';
+  fSync();
+}
+function fSync(){ const a=[...document.querySelectorAll('#fpop .fv')]; document.getElementById('fall').checked=a.every(x=>x.checked); }
+function fAll(on){ document.querySelectorAll('#fpop .fv').forEach(x=>x.checked=on); fApply(); }
+function fApply(){
+  const a=[...document.querySelectorAll('#fpop .fv')], on=a.filter(x=>x.checked);
+  CF[FKEY]= on.length===a.length?null:new Set(on.map(x=>FVALS[+x.dataset.i]));
+  fSync(); renderRecRows();
+}
+document.addEventListener('click',closeFilter);
+const RQ={region:'',kw:''}; // 목록 지역·키워드 검색 상태
+function renderRecRows(){
+  const c=document.getElementById('content');
+  const from=c.querySelector('#q_from'), to=c.querySelector('#q_to'), body=c.querySelector('#recBody');
+  const kw=RQ.kw.trim().toLowerCase();
+  let list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value
+      &&(!RQ.region||regionOf(r)===RQ.region)
+      &&(!kw||[regionOf(r),clientName(r),r.rep,r.addr,r.place].join(' ').toLowerCase().includes(kw)))
+    .sort((a,b)=> b.date<a.date?-1:b.date>a.date?1:b.id-a.id);
+  FBASE=list; list=list.filter(r=>Object.keys(CF).every(k=>!CF[k]||CF[k].has(COLS[k](r))));
+  Object.keys(CF).forEach(k=>{ const b=document.getElementById('fb_'+k); if(b)b.classList.toggle('on',!!CF[k]); });
+  if(!list.length){ body.innerHTML=`<tr><td colspan="7" class="empty">조건에 맞는 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; syncSel(); return; }
+  body.innerHTML=list.map(r=>{
+    const t=byId(DB.types,r.typeId), cl=clientName(r);
+    return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selIds.has(r.id)?'sel':''}">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="rowchk" ${selIds.has(r.id)?'checked':''} onchange="toggleRec(${r.id},this.checked)"></td>
+      <td>${r.date}</td>
+      <td>${esc(regionOf(r))}</td>
+      <td>${cl||'-'}</td><td>${t?t.name:'-'}</td>
+      <td>${r.resv||'-'}</td><td>${schedPill(r)}</td></tr>`;
+  }).join('');
+  syncSel();
+}
+/* 지역별·채수예정일 지정 엑셀 다운로드 (지역은 채수장소 → 의뢰인주소의 시·군·구에서 추출) */
+const XS={region:'',from:'',to:''};
+function regionOf(r){
+  const t=((r.place||'').trim()||(r.addr||'').trim()).split(/\s+/).filter(Boolean);
+  if(!t.length)return '(지역 미상)';
+  return t.find(w=>/[시군구]$/.test(w)&&w.length>1)||t[0];
+}
+function initExportBar(){
+  const regs=[...new Set(DB.receptions.map(regionOf))].sort();
+  const sel=document.getElementById('x_region');
+  sel.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  sel.value=regs.includes(XS.region)?XS.region:'';
+  document.getElementById('x_from').value=XS.from; document.getElementById('x_to').value=XS.to;
+}
+function exportXlsx(){
+  const list=DB.receptions.filter(r=>(!XS.region||regionOf(r)===XS.region)
+      &&(!XS.from&&!XS.to||r.resv)&&(!XS.from||r.resv>=XS.from)&&(!XS.to||r.resv<=XS.to))
+    .sort((a,b)=>(a.resv||'9').localeCompare(b.resv||'9')||regionOf(a).localeCompare(regionOf(b))||a.id-b.id);
+  if(!list.length)return alert('조건에 맞는 접수건이 없습니다');
+  const head=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모'];
+  const rows=list.map(r=>{ const pu=byId(DB.purposes,r.purposeId), ty=byId(DB.types,r.typeId);
+    return [r.resv||'',regionOf(r),r.date,clientName(r),r.rep||'',r.receiver||'',r.tel||'',r.fax||'',r.mobile||'',
+      r.addr||'',r.place||'',pu?pu.name:'',ty?ty.name:'',r.permit||'',r.sampler||'',r.memo||'']; });
+  const name=`접수목록_${XS.region||'전체지역'}_${XS.from||'처음'}~${XS.to||'끝'}`;
+  if(window.XLSX){
+    const ws=XLSX.utils.aoa_to_sheet([head].concat(rows));
+    ws['!cols']=head.map((h,i)=>({wch:[12,10,12,20,10,10,13,13,13,30,30,18,16,14,10,24][i]}));
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'접수목록');
+    XLSX.writeFile(wb,name+'.xlsx');
+  }else{ // 엑셀 라이브러리를 못 불러온 경우 CSV로 대체
+    const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+    const blob=new Blob(['\ufeff'+[head].concat(rows).map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name+'.csv'; a.click();
+  }
+}
+/* 엑셀 업로드: 첫 행 머리글 이름으로 열을 찾으므로, 위 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음 */
+const XHEAD=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모'];
+function downloadTemplate(){
+  if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
+  const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','지하수법','지하수(음용수)','','','']]);
+  ws['!cols']=XHEAD.map(()=>({wch:16})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'접수목록');
+  XLSX.writeFile(wb,'접수_업로드양식.xlsx'); }
+function xlDate(v){
+  if(v==null||v==='')return '';
+  if(v instanceof Date){ const d=new Date(v.getTime()+12*3600*1000); return ymd(d.getFullYear(),d.getMonth(),d.getDate()); }
+  const m=String(v).trim().match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m?ymd(+m[1],+m[2]-1,+m[3]):''; }
+function importXlsx(inp){
+  const f=inp.files[0]; inp.value=''; if(!f)return;
+  if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
+  const fr=new FileReader();
+  fr.onload=()=>{ try{
+    const wb=XLSX.read(fr.result,{type:'array',cellDates:true});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+    const hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='상호/명칭'));
+    if(hi<0)return alert('첫 행에 "상호/명칭" 머리글이 있는 엑셀 파일이어야 합니다.\n("업로드 양식" 버튼으로 양식을 받을 수 있습니다)');
+    const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(XHEAD.includes(h)&&!(h in col))col[h]=i; });
+    const get=(r,h)=>col[h]==null?'':(r[col[h]]==null?'':r[col[h]]);
+    const str=(r,h)=>String(get(r,h)).trim();
+    let maxId=DB.receptions.reduce((m,x)=>Math.max(m,x.id),0), add=[], skip=0, unk=new Set();
+    rows.slice(hi+1).forEach(r=>{
+      if(!r.some(c=>String(c).trim()!==''))return;
+      if(!str(r,'상호/명칭')){ skip++; return; }
+      const pu=DB.purposes.find(x=>x.name===str(r,'검사목적')), ty=DB.types.find(x=>x.name===str(r,'시료종류'));
+      if(str(r,'시료종류')&&!ty)unk.add(str(r,'시료종류'));
+      const tid=ty?ty.id:null;
+      add.push({id:++maxId,status:'RECEIVED',purposeId:pu?pu.id:null,typeId:tid,
+        items:(DB.typeItems[tid]||[]).map((iid,i)=>({itemId:iid,meas:'',judge:'',fail:null,inspId:null,order:i})),
+        clientName:str(r,'상호/명칭'),date:xlDate(get(r,'접수일'))||today(),resv:xlDate(get(r,'채수예정일')),
+        rep:str(r,'대표자'),receiver:str(r,'의뢰인'),tel:str(r,'일반전화'),fax:str(r,'팩스'),mobile:str(r,'휴대전화'),
+        addr:str(r,'의뢰인주소'),place:str(r,'채수장소'),permit:str(r,'허가신고번호'),sampler:str(r,'시료채취자'),memo:str(r,'메모')}); });
+    if(!add.length)return alert('등록할 행이 없습니다 (상호/명칭이 비어 있는 행은 제외됩니다)');
+    if(!confirm(`${add.length}건을 접수 목록에 추가합니다.`+(skip?`\n상호/명칭이 없어 제외: ${skip}건`:'')
+      +(unk.size?`\n목록에 없는 시료종류(비워서 등록): ${[...unk].join(', ')}`:'')))return;
+    DB.receptions.push(...add); save();
+    const ds=add.map(x=>x.date).sort(), q=document.getElementById('q_from'), t=document.getElementById('q_to');
+    if(q&&ds[0]<q.value)q.value=ds[0]; if(t&&ds[ds.length-1]>t.value)t.value=ds[ds.length-1];
+    renderRecRows(); alert(`${add.length}건 업로드 완료`);
+  }catch(e){ alert('엑셀 파일을 읽지 못했습니다: '+e.message); } };
+  fr.readAsArrayBuffer(f);
+}
+function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
+function syncSel(){
+  document.querySelectorAll('#recBody tr[data-id]').forEach(tr=>{ const on=selIds.has(+tr.dataset.id);
+    tr.classList.toggle('sel',on); tr.querySelector('.rowchk').checked=on; });
+  const all=document.querySelectorAll('#recBody .rowchk'), ca=document.getElementById('chkAll');
+  if(ca) ca.checked=all.length>0&&[...all].every(x=>x.checked); }
+function toggleRec(id,on){ on?selIds.add(id):selIds.delete(id); syncSel(); }
+function toggleAll(on){ document.querySelectorAll('#recBody tr[data-id]').forEach(tr=>{
+  on?selIds.add(+tr.dataset.id):selIds.delete(+tr.dataset.id); }); syncSel(); }
+function pickRec(id){ toggleRec(id,!selIds.has(id)); } // 행 클릭도 체크 토글
+function editSel(){ if(!selIds.size)return alert('수정할 접수건을 체크하세요');
+  if(selIds.size>1)return alert('수정은 한 건씩만 가능합니다. 하나만 체크하세요'); openRec([...selIds][0]); }
+const DEL_REASONS=['고객 요청(취소)','중복 접수','입력 오류','채수 일정 불가','기타'];
+function delSel(){ if(!selIds.size)return alert('삭제할 접수건을 체크하세요');
+  const rs=[...selIds].map(id=>byId(DB.receptions,id)).filter(Boolean);
+  if(rs.some(r=>r.status==='ISSUED'))return alert('발급된 접수건은 삭제할 수 없습니다');
+  document.getElementById('d_info').innerHTML=`체크한 접수건 <b>${rs.length}건</b>을 삭제합니다.<br><span style="color:var(--muted)">${rs.slice(0,3).map(r=>esc(clientName(r))||r.date).join(', ')}${rs.length>3?' 외 '+(rs.length-3)+'건':''}</span>`;
+  const sel=document.getElementById('d_reason');
+  sel.innerHTML='<option value="">(사유 선택)</option>'+DEL_REASONS.map(x=>`<option>${x}</option>`).join('');
+  document.getElementById('d_memo').value='';
+  document.getElementById('delMask').classList.add('on'); }
+function closeDel(){ document.getElementById('delMask').classList.remove('on'); }
+function confirmDel(){
+  const reason=document.getElementById('d_reason').value, memo=document.getElementById('d_memo').value.trim();
+  if(!reason)return alert('삭제 사유를 선택하세요');
+  if(reason==='기타'&&!memo)return alert('기타 사유는 상세 사유를 입력해야 합니다');
+  const at=new Date().toISOString().slice(0,16).replace('T',' ');
+  DB.receptions.filter(x=>selIds.has(x.id)).forEach(r=>DB.trash.push(Object.assign({},r,{delReason:reason,delMemo:memo,delAt:at})));
+  DB.receptions=DB.receptions.filter(x=>!selIds.has(x.id)); selIds.clear();
+  save(); closeDel(); renderReception(); }
+function renderTrash(){
+  const rows=DB.trash.slice().reverse();
+  document.getElementById('content').innerHTML=`<div class="card"><table>
+    <thead><tr><th>삭제일시</th><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>삭제 사유</th></tr></thead><tbody>${
+    rows.length? rows.map(r=>{ const t=byId(DB.types,r.typeId);
+      return `<tr><td>${r.delAt}</td><td>${r.date}</td><td>${esc(clientName(r))||'-'}</td><td>${t?esc(t.name):'-'}</td>
+        <td>${esc(r.delReason)}${r.delMemo?`<br><span style="color:var(--muted);font-size:12px">${esc(r.delMemo)}</span>`:''}</td></tr>`; }).join('')
+    : `<tr><td colspan="5" class="empty">삭제된 접수건이 없습니다</td></tr>` }</tbody></table></div>`;
+}
+
+/* 접수 등록/수정 모달 */
+let editRecId=null;
+function fillSelect(sel,arr,val,ph){ sel.innerHTML=(ph?`<option value="0">${ph}</option>`:'')+
+  arr.map(o=>`<option value="${o.id}">${o.name}</option>`).join(''); if(val!=null)sel.value=val; }
+function refreshPurposeType(){
+  const pv=document.getElementById('f_purpose').value;
+  fillSelect(document.getElementById('f_purpose'), DB.purposes,pv||null,'(선택)');
+  const tv=document.getElementById('f_type').value;
+  fillSelect(document.getElementById('f_type'), DB.types,tv||null,'(선택)');
+}
+function openRec(id){
+  editRecId=id;
+  document.getElementById('f_cs').value=''; document.getElementById('f_cs_res').style.display='none';
+  document.getElementById('recTitle').textContent = id?'접수 수정':'접수 등록';
+  const r = id? byId(DB.receptions,id) : null;
+  if(r){
+    document.getElementById('f_date').value=r.date;
+    refreshPurposeType();
+    document.getElementById('f_purpose').value=r.purposeId||0;
+    document.getElementById('f_type').value=r.typeId||0;
+    document.getElementById('f_client').value=clientName(r);
+    document.getElementById('f_place').value=r.place||'';
+    document.getElementById('f_addr').value=r.addr||'';
+    document.getElementById('f_tel').value=r.tel||'';
+    document.getElementById('f_fax').value=r.fax||'';
+    document.getElementById('f_mobile').value=r.mobile||'';
+    document.getElementById('f_rep').value=r.rep||'';
+    document.getElementById('f_memo').value=r.memo||'';
+    document.getElementById('f_permit').value=r.permit||'';
+    document.getElementById('f_resv').value=r.resv||'';
+    document.getElementById('f_sampler').value=r.sampler||'';
+    document.getElementById('f_receiver').value=r.receiver||'';
+  }else{
+    document.getElementById('f_date').value=today(); refreshPurposeType();
+    ['f_client','f_memo','f_permit','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
+  }
+  document.getElementById('recMask').classList.add('on');
+}
+/* 기존고객 검색: 이전 접수건에서 고객을 모아 선택하면 입력칸 자동 채움 */
+function customers(){
+  const m=new Map();
+  DB.receptions.slice().sort((a,b)=>a.id-b.id).forEach(r=>{ const n=clientName(r).trim(); if(!n)return;
+    m.set(n+'|'+(r.rep||''),{name:n,rep:r.rep||'',tel:r.tel||'',fax:r.fax||'',mobile:r.mobile||'',addr:r.addr||''}); });
+  return [...m.values()];
+}
+let custHits=[];
+function searchCust(){
+  const q=document.getElementById('f_cs').value.trim().toLowerCase(), box=document.getElementById('f_cs_res');
+  if(!q){ box.style.display='none'; return; }
+  custHits=customers().filter(c=>[c.name,c.rep,c.tel,c.fax,c.mobile,c.addr].join(' ').toLowerCase().includes(q)).slice(0,20);
+  box.innerHTML=custHits.length? custHits.map((c,i)=>`<div onmousedown="pickCust(${i})" style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--line)" onmouseover="this.style.background='#f0f5fd'" onmouseout="this.style.background=''">
+      <b>${esc(c.name)}</b> <span style="color:var(--muted)">${esc(c.rep)} · ${esc(c.mobile||c.tel||'-')}</span><br><span style="font-size:12px;color:#777">${esc(c.addr)}</span></div>`).join('')
+    : '<div style="padding:10px;color:var(--muted)">일치하는 기존 고객이 없습니다</div>';
+  box.style.display='block';
+}
+function pickCust(i){
+  const c=custHits[i]; if(!c)return;
+  const set=(id,v)=>document.getElementById(id).value=v;
+  set('f_client',c.name); set('f_rep',c.rep); set('f_tel',c.tel); set('f_fax',c.fax); set('f_mobile',c.mobile); set('f_addr',c.addr);
+  set('f_cs',''); document.getElementById('f_cs_res').style.display='none';
+}
+function closeRec(){ document.getElementById('recMask').classList.remove('on'); }
+function saveRec(){
+  const g=id=>document.getElementById(id).value;
+  const typeId=+g('f_type');
+  const rec={
+    purposeId:+g('f_purpose')||null, typeId:typeId||null,
+    clientName:g('f_client').trim(), date:g('f_date'),
+    place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), permit:g('f_permit').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
+  };
+  if(editRecId){
+    const r=byId(DB.receptions,editRecId); Object.assign(r,rec);
+  }else{
+    const id=(DB.receptions.reduce((m,x)=>Math.max(m,x.id),0)||0)+1;
+    const ids=DB.typeItems[typeId]||[];
+    const items=ids.map((iid,i)=>({itemId:iid, meas:'', judge:'', fail:null, inspId:null, order:i}));
+    DB.receptions.push(Object.assign({id,status:'RECEIVED',items},rec));
+    selIds.clear(); selIds.add(id);
+  }
+  save(); closeRec(); render();
+}
+
+/* ===================== 캘린더 (채수예정일 기준) ===================== */
+const CAL={y:new Date().getFullYear(), m:new Date().getMonth(), sel:today(), region:''};
+const pad2=n=>String(n).padStart(2,'0');
+const ymd=(y,m,d)=>`${y}-${pad2(m+1)}-${pad2(d)}`;
+function calMove(n){ if(n===0){ const d=new Date(); CAL.y=d.getFullYear(); CAL.m=d.getMonth(); CAL.sel=today(); }
+  else{ const d=new Date(CAL.y,CAL.m+n,1); CAL.y=d.getFullYear(); CAL.m=d.getMonth(); } renderCalendar(); }
+function calPick(ds){ CAL.sel=ds; renderCalendar(); }
+function calNew(ds){ openRec(null); document.getElementById('f_resv').value=ds; }
+function calEdit(id){ selIds.clear(); selIds.add(id); openRec(id); }
+function renderCalendar(){
+  const first=new Date(CAL.y,CAL.m,1), start=new Date(CAL.y,CAL.m,1-first.getDay());
+  const regs=[...new Set(DB.receptions.map(regionOf))].sort();
+  if(CAL.region&&!regs.includes(CAL.region))CAL.region='';
+  const recs=DB.receptions.filter(r=>!CAL.region||regionOf(r)===CAL.region);
+  const byDay={}; recs.forEach(r=>{ if(r.resv)(byDay[r.resv]=byDay[r.resv]||[]).push(r); });
+  const unset=recs.filter(r=>!r.resv).length, td=today();
+  let cells='';
+  for(let i=0;i<42;i++){
+    const d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i), ds=ymd(d.getFullYear(),d.getMonth(),d.getDate());
+    const list=byDay[ds]||[], dw=d.getDay();
+    cells+=`<div class="day ${d.getMonth()!==CAL.m?'other':''} ${ds===td?'today':''} ${ds===CAL.sel?'selday':''} ${dw===0?'sun':dw===6?'sat':''}" onclick="calPick('${ds}')" ondblclick="calNew('${ds}')">
+      <div class="dn">${d.getDate()}${list.length?` <span style="font-weight:400;color:var(--muted)">(${list.length})</span>`:''}</div>
+      ${list.slice(0,3).map(r=>{ const t=byId(DB.types,r.typeId);
+        return `<div class="ev ${r.sampler?'':'nosm'}" title="${esc(clientName(r))} / ${t?esc(t.name):''} / 채취자: ${esc(r.sampler)||'미지정'}" onclick="event.stopPropagation();calEdit(${r.id})"><b>${esc(r.sampler)||'채취자 미지정'}</b> ${esc(clientName(r))||'(상호 없음)'}${t?' · '+esc(t.name):''}</div>`; }).join('')}
+      ${list.length>3?`<div class="more">+${list.length-3}건 더보기</div>`:''}</div>`;
+  }
+  const sel=byDay[CAL.sel]||[];
+  document.getElementById('content').innerHTML=`
+    <div class="toolbar">
+      <button onclick="calMove(-1)">◀ 이전달</button>
+      <b style="font-size:16px;min-width:110px;text-align:center">${CAL.y}년 ${CAL.m+1}월</b>
+      <button onclick="calMove(1)">다음달 ▶</button>
+      <button onclick="calMove(0)">오늘</button>
+      <label style="font-size:12px;color:var(--muted);margin-left:8px">지역</label>
+      <select onchange="CAL.region=this.value;renderCalendar()"><option value="">전체 지역</option>${regs.map(g=>`<option value="${esc(g)}" ${g===CAL.region?'selected':''}>${esc(g)}</option>`).join('')}</select>
+      <span class="sp"></span>
+      <span style="font-size:12px;color:var(--muted)">채수예정일 미지정 ${unset}건 · 날짜 더블클릭 = 해당일로 신규 등록</span>
+    </div>
+    <div class="cal">${['일','월','화','수','목','금','토'].map((w,i)=>`<div class="dow ${i===0?'sun':i===6?'sat':''}">${w}</div>`).join('')}${cells}</div>
+    <div class="card" style="margin-top:14px">
+      <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line);display:flex;align-items:center">
+        <span>${CAL.sel} 채수 일정 (${sel.length}건)</span><span class="sp" style="flex:1"></span>
+        <button class="pri" onclick="calNew('${CAL.sel}')">이 날짜로 신규 등록</button></div>
+      <table><thead><tr><th>상호/명칭</th><th>검체명</th><th>채수장소</th><th>시료채취자</th><th>연락처</th></tr></thead><tbody>${
+        sel.length? sel.map(r=>{ const t=byId(DB.types,r.typeId);
+          return `<tr style="cursor:pointer" onclick="calEdit(${r.id})"><td>${esc(clientName(r))||'-'}</td><td>${t?esc(t.name):'-'}</td><td>${esc(r.place)||'-'}</td><td>${esc(r.sampler)||'-'}</td><td>${esc(r.mobile||r.tel)||'-'}</td></tr>`; }).join('')
+        : `<tr><td colspan="5" class="empty">이 날짜에 채수 일정이 없습니다</td></tr>` }</tbody></table>
+    </div>`;
+}
+
+/* ===================== 통계·현황 ===================== */
+function renderStat(){
+  const c=document.getElementById('content');
+  const recs=DB.receptions;
+  const cntBy=st=>recs.filter(r=>r.status===st).length;
+  const fixed=recs.filter(r=>r.resv).length;
+  const unset=recs.filter(r=>!r.resv).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+  // 시료종류별 접수 건수
+  const byType={}; recs.forEach(r=>{ const t=byId(DB.types,r.typeId); const k=t?t.name:'(미지정)';
+    byType[k]=(byType[k]||0)+1; });
+  c.innerHTML=`
+    <div class="stat">
+      <div class="box"><div class="n">${recs.length}</div><div class="l">총 접수건</div></div>
+      <div class="box"><div class="n" style="color:var(--warn)">${cntBy('RECEIVED')}</div><div class="l">진행중(접수)</div></div>
+      <div class="box"><div class="n" style="color:var(--ok)">${fixed}</div><div class="l">채수예정일 확정</div></div>
+      <div class="box"><div class="n" style="color:var(--bad)">${unset.length}</div><div class="l">채수예정일 미지정</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">시료종류별 접수 건수</div>
+        <table><tbody>${ Object.keys(byType).length? Object.entries(byType).map(([k,v])=>
+          `<tr><td>${k}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
+          : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">채수예정일 미지정 접수건</div>
+        <table><tbody>${ unset.length? unset.map(r=>{ const t=byId(DB.types,r.typeId);
+          return `<tr><td>${esc(clientName(r))||'-'}</td><td>${t?esc(t.name):'-'}</td><td style="color:#999">접수 ${r.date}</td></tr>`; }).join('')
+          : `<tr><td class="empty">미지정 접수건 없음</td></tr>` }</tbody></table>
+      </div>
+    </div>`;
+}
+
+/* ===================== 공통 ===================== */
+const esc=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+/* ===================== 시작 ===================== */
+renderDbInfo(); render();
+</script>
+</body>
+</html>
