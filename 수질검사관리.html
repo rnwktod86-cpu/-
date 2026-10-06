@@ -293,6 +293,11 @@ function renderReception(){
       <label style="font-size:12px;color:var(--muted)">채수예정일</label>
       <input type="date" id="x_from" onchange="XS.from=this.value"><span>~</span><input type="date" id="x_to" onchange="XS.to=this.value">
       <button class="pri" onclick="exportXlsx()">엑셀 다운로드</button>
+      <span style="border-left:1px solid var(--line);height:22px;margin:0 6px"></span>
+      <b>엑셀 업로드</b>
+      <button onclick="document.getElementById('xl_file').click()">파일 선택</button>
+      <button onclick="downloadTemplate()">업로드 양식</button>
+      <input type="file" id="xl_file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importXlsx(this)">
     </div>
     <div class="card"><table>
       <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>지역 <span class="fbtn" id="fb_region" onclick="openFilter(event,'region')" title="체크로 필터">▼</span></th><th>상호/명칭 <span class="fbtn" id="fb_client" onclick="openFilter(event,'client')" title="체크로 필터">▼</span></th><th>시료종류 <span class="fbtn" id="fb_type" onclick="openFilter(event,'type')" title="체크로 필터">▼</span></th><th>채수예정일 <span class="fbtn" id="fb_resv" onclick="openFilter(event,'resv')" title="체크로 필터">▼</span></th><th>상태 <span class="fbtn" id="fb_status" onclick="openFilter(event,'status')" title="체크로 필터">▼</span></th></tr></thead>
@@ -391,6 +396,52 @@ function exportXlsx(){
     const blob=new Blob(['\ufeff'+[head].concat(rows).map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name+'.csv'; a.click();
   }
+}
+/* 엑셀 업로드: 첫 행 머리글 이름으로 열을 찾으므로, 위 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음 */
+const XHEAD=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모'];
+function downloadTemplate(){
+  if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
+  const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','지하수법','지하수(음용수)','','','']]);
+  ws['!cols']=XHEAD.map(()=>({wch:16})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'접수목록');
+  XLSX.writeFile(wb,'접수_업로드양식.xlsx'); }
+function xlDate(v){
+  if(v==null||v==='')return '';
+  if(v instanceof Date){ const d=new Date(v.getTime()+12*3600*1000); return ymd(d.getFullYear(),d.getMonth(),d.getDate()); }
+  const m=String(v).trim().match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m?ymd(+m[1],+m[2]-1,+m[3]):''; }
+function importXlsx(inp){
+  const f=inp.files[0]; inp.value=''; if(!f)return;
+  if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
+  const fr=new FileReader();
+  fr.onload=()=>{ try{
+    const wb=XLSX.read(fr.result,{type:'array',cellDates:true});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+    const hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='상호/명칭'));
+    if(hi<0)return alert('첫 행에 "상호/명칭" 머리글이 있는 엑셀 파일이어야 합니다.\n("업로드 양식" 버튼으로 양식을 받을 수 있습니다)');
+    const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(XHEAD.includes(h)&&!(h in col))col[h]=i; });
+    const get=(r,h)=>col[h]==null?'':(r[col[h]]==null?'':r[col[h]]);
+    const str=(r,h)=>String(get(r,h)).trim();
+    let maxId=DB.receptions.reduce((m,x)=>Math.max(m,x.id),0), add=[], skip=0, unk=new Set();
+    rows.slice(hi+1).forEach(r=>{
+      if(!r.some(c=>String(c).trim()!==''))return;
+      if(!str(r,'상호/명칭')){ skip++; return; }
+      const pu=DB.purposes.find(x=>x.name===str(r,'검사목적')), ty=DB.types.find(x=>x.name===str(r,'시료종류'));
+      if(str(r,'시료종류')&&!ty)unk.add(str(r,'시료종류'));
+      const tid=ty?ty.id:null;
+      add.push({id:++maxId,status:'RECEIVED',purposeId:pu?pu.id:null,typeId:tid,
+        items:(DB.typeItems[tid]||[]).map((iid,i)=>({itemId:iid,meas:'',judge:'',fail:null,inspId:null,order:i})),
+        clientName:str(r,'상호/명칭'),date:xlDate(get(r,'접수일'))||today(),resv:xlDate(get(r,'채수예정일')),
+        rep:str(r,'대표자'),receiver:str(r,'의뢰인'),tel:str(r,'일반전화'),fax:str(r,'팩스'),mobile:str(r,'휴대전화'),
+        addr:str(r,'의뢰인주소'),place:str(r,'채수장소'),permit:str(r,'허가신고번호'),sampler:str(r,'시료채취자'),memo:str(r,'메모')}); });
+    if(!add.length)return alert('등록할 행이 없습니다 (상호/명칭이 비어 있는 행은 제외됩니다)');
+    if(!confirm(`${add.length}건을 접수 목록에 추가합니다.`+(skip?`\n상호/명칭이 없어 제외: ${skip}건`:'')
+      +(unk.size?`\n목록에 없는 시료종류(비워서 등록): ${[...unk].join(', ')}`:'')))return;
+    DB.receptions.push(...add); save();
+    const ds=add.map(x=>x.date).sort(), q=document.getElementById('q_from'), t=document.getElementById('q_to');
+    if(q&&ds[0]<q.value)q.value=ds[0]; if(t&&ds[ds.length-1]>t.value)t.value=ds[ds.length-1];
+    renderRecRows(); alert(`${add.length}건 업로드 완료`);
+  }catch(e){ alert('엑셀 파일을 읽지 못했습니다: '+e.message); } };
+  fr.readAsArrayBuffer(f);
 }
 function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
 function syncSel(){
