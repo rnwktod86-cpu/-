@@ -283,6 +283,7 @@ function renderReception(){
       <input id="q_kw" placeholder="지역·상호·주소·채수장소 검색" style="width:200px" oninput="RQ.kw=this.value;renderRecRows()">
       <span class="sp" style="flex:1"></span>
       <button class="pri" onclick="openRec(null)">신규 등록</button>
+      <button onclick="doneSel()" title="체크한 접수건을 완료로 표시 (전부 완료 상태면 완료 취소)">완료 처리/취소</button>
       <button onclick="editSel()">수정</button>
       <button class="dgr" onclick="delSel()">삭제</button>
     </div>
@@ -318,7 +319,7 @@ function renderReception(){
 const CF={region:null,client:null,type:null,resv:null,status:null};
 const COLS={region:r=>regionOf(r), client:r=>clientName(r)||'-',
   type:r=>{ const t=byId(DB.types,r.typeId); return t?t.name:'-'; },
-  resv:r=>r.resv||'-', status:r=>r.resv?'일정 확정':'일정 미확정'};
+  resv:r=>r.resv||'-', status:r=>r.done?'완료':r.resv?'일정 확정':'일정 미확정'};
 let FBASE=[], FKEY='', FVALS=[];
 function closeFilter(){ const o=document.getElementById('fpop'); if(o)o.remove(); }
 function openFilter(e,k){
@@ -444,7 +445,7 @@ function importXlsx(inp){
   }catch(e){ alert('엑셀 파일을 읽지 못했습니다: '+e.message); } };
   fr.readAsArrayBuffer(f);
 }
-function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
+function schedPill(r){ if(r.done)return `<span class="pill p-issued">완료${r.resv?' '+r.resv:''}</span>`; return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
 function syncSel(){
   document.querySelectorAll('#recBody tr[data-id]').forEach(tr=>{ const on=selIds.has(+tr.dataset.id);
     tr.classList.toggle('sel',on); tr.querySelector('.rowchk').checked=on; });
@@ -454,6 +455,9 @@ function toggleRec(id,on){ on?selIds.add(id):selIds.delete(id); syncSel(); }
 function toggleAll(on){ document.querySelectorAll('#recBody tr[data-id]').forEach(tr=>{
   on?selIds.add(+tr.dataset.id):selIds.delete(+tr.dataset.id); }); syncSel(); }
 function pickRec(id){ toggleRec(id,!selIds.has(id)); } // 행 클릭도 체크 토글
+function doneSel(){ if(!selIds.size)return alert('완료 처리할 접수건을 체크하세요');
+  const rs=[...selIds].map(id=>byId(DB.receptions,id)).filter(Boolean), allDone=rs.every(r=>r.done);
+  rs.forEach(r=>{ r.done=!allDone; }); save(); renderRecRows(); }
 function editSel(){ if(!selIds.size)return alert('수정할 접수건을 체크하세요');
   if(selIds.size>1)return alert('수정은 한 건씩만 가능합니다. 하나만 체크하세요'); openRec([...selIds][0]); }
 const DEL_REASONS=['고객 요청(취소)','중복 접수','입력 오류','채수 일정 불가','기타'];
