@@ -59,6 +59,12 @@
   .j-ok{ background:var(--ok-bg); color:var(--ok); }
   .j-bad{ background:var(--bad-bg); color:var(--bad); }
   .j-none{ background:#eef0f3; color:#8a919c; }
+  .fbtn{ font-size:10px; color:#9aa3b0; cursor:pointer; margin-left:3px; padding:1px 3px; border-radius:3px; }
+  .fbtn:hover{ background:#dfe5ee; } .fbtn.on{ color:#fff; background:var(--accent); }
+  .fpop{ position:absolute; z-index:60; background:#fff; border:1px solid #c4ccd6; border-radius:6px; min-width:170px;
+         max-height:280px; overflow:auto; box-shadow:0 6px 18px rgba(0,0,0,.18); padding:4px 0; font-size:13px; }
+  .fpop label{ display:flex; align-items:center; gap:6px; padding:5px 12px; cursor:pointer; white-space:nowrap; }
+  .fpop label:hover{ background:#f0f5fd; } .fpop .fall{ border-bottom:1px solid var(--line); font-weight:600; }
   .empty{ padding:40px; text-align:center; color:var(--muted); }
   /* 모달 */
   .mask{ position:fixed; inset:0; background:rgba(20,26,38,.45); display:none;
@@ -289,7 +295,7 @@ function renderReception(){
       <button class="pri" onclick="exportXlsx()">엑셀 다운로드</button>
     </div>
     <div class="card"><table>
-      <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>지역</th><th>상호/명칭</th><th>시료종류</th><th>항목</th><th>채수예정일</th><th>상태</th></tr></thead>
+      <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>지역 <span class="fbtn" id="fb_region" onclick="openFilter(event,'region')" title="체크로 필터">▼</span></th><th>상호/명칭 <span class="fbtn" id="fb_client" onclick="openFilter(event,'client')" title="체크로 필터">▼</span></th><th>시료종류 <span class="fbtn" id="fb_type" onclick="openFilter(event,'type')" title="체크로 필터">▼</span></th><th>채수예정일 <span class="fbtn" id="fb_resv" onclick="openFilter(event,'resv')" title="체크로 필터">▼</span></th><th>상태 <span class="fbtn" id="fb_status" onclick="openFilter(event,'status')" title="체크로 필터">▼</span></th></tr></thead>
       <tbody id="recBody"></tbody>
     </table></div>`;
   initExportBar();
@@ -303,16 +309,43 @@ function renderReception(){
   c.querySelector('#q_kw').value=RQ.kw;
   renderRecRows();
 }
+/* 열 머리글 체크 필터: CF[열]=null이면 전체, Set이면 체크된 값만 표시 */
+const CF={region:null,client:null,type:null,resv:null,status:null};
+const COLS={region:r=>regionOf(r), client:r=>clientName(r)||'-',
+  type:r=>{ const t=byId(DB.types,r.typeId); return t?t.name:'-'; },
+  resv:r=>r.resv||'-', status:r=>r.resv?'일정 확정':'일정 미확정'};
+let FBASE=[], FKEY='', FVALS=[];
+function closeFilter(){ const o=document.getElementById('fpop'); if(o)o.remove(); }
+function openFilter(e,k){
+  e.stopPropagation(); const had=document.getElementById('fpop'); closeFilter(); if(had&&FKEY===k)return;
+  FKEY=k; FVALS=[...new Set(FBASE.map(COLS[k]))].sort();
+  const d=document.createElement('div'); d.id='fpop'; d.className='fpop'; d.onclick=ev=>ev.stopPropagation();
+  d.innerHTML=`<label class="fall"><input type="checkbox" id="fall" onchange="fAll(this.checked)"> (전체 선택)</label>`+
+    FVALS.map((v,i)=>`<label><input type="checkbox" class="fv" data-i="${i}" ${(!CF[k]||CF[k].has(v))?'checked':''} onchange="fApply()"> ${esc(v)}</label>`).join('');
+  document.body.appendChild(d);
+  const r=e.target.getBoundingClientRect(); d.style.left=(r.left+scrollX)+'px'; d.style.top=(r.bottom+scrollY+4)+'px';
+  fSync();
+}
+function fSync(){ const a=[...document.querySelectorAll('#fpop .fv')]; document.getElementById('fall').checked=a.every(x=>x.checked); }
+function fAll(on){ document.querySelectorAll('#fpop .fv').forEach(x=>x.checked=on); fApply(); }
+function fApply(){
+  const a=[...document.querySelectorAll('#fpop .fv')], on=a.filter(x=>x.checked);
+  CF[FKEY]= on.length===a.length?null:new Set(on.map(x=>FVALS[+x.dataset.i]));
+  fSync(); renderRecRows();
+}
+document.addEventListener('click',closeFilter);
 const RQ={region:'',kw:''}; // 목록 지역·키워드 검색 상태
 function renderRecRows(){
   const c=document.getElementById('content');
   const from=c.querySelector('#q_from'), to=c.querySelector('#q_to'), body=c.querySelector('#recBody');
   const kw=RQ.kw.trim().toLowerCase();
-  const list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value
+  let list=DB.receptions.filter(r=>r.date>=from.value&&r.date<=to.value
       &&(!RQ.region||regionOf(r)===RQ.region)
       &&(!kw||[regionOf(r),clientName(r),r.rep,r.addr,r.place].join(' ').toLowerCase().includes(kw)))
     .sort((a,b)=> b.date<a.date?-1:b.date>a.date?1:b.id-a.id);
-  if(!list.length){ body.innerHTML=`<tr><td colspan="8" class="empty">조건에 맞는 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; syncSel(); return; }
+  FBASE=list; list=list.filter(r=>Object.keys(CF).every(k=>!CF[k]||CF[k].has(COLS[k](r))));
+  Object.keys(CF).forEach(k=>{ const b=document.getElementById('fb_'+k); if(b)b.classList.toggle('on',!!CF[k]); });
+  if(!list.length){ body.innerHTML=`<tr><td colspan="7" class="empty">조건에 맞는 접수건이 없습니다. “신규 등록”으로 시작하세요.</td></tr>`; syncSel(); return; }
   body.innerHTML=list.map(r=>{
     const t=byId(DB.types,r.typeId), cl=clientName(r);
     return `<tr data-id="${r.id}" onclick="pickRec(${r.id})" class="${selIds.has(r.id)?'sel':''}">
@@ -320,7 +353,7 @@ function renderRecRows(){
       <td>${r.date}</td>
       <td>${esc(regionOf(r))}</td>
       <td>${cl||'-'}</td><td>${t?t.name:'-'}</td>
-      <td>${r.items.length}</td><td>${r.resv||'-'}</td><td>${schedPill(r)}</td></tr>`;
+      <td>${r.resv||'-'}</td><td>${schedPill(r)}</td></tr>`;
   }).join('');
   syncSel();
 }
