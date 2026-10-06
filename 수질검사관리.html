@@ -420,7 +420,7 @@ function importXlsx(inp){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
     const hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='상호/명칭'));
     if(hi<0)return alert('첫 행에 "상호/명칭" 머리글이 있는 엑셀 파일이어야 합니다.\n("업로드 양식" 버튼으로 양식을 받을 수 있습니다)');
-    const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(h==='검체명')h='검체명'; /* 예전 양식 호환 */ if(XHEAD.includes(h)&&!(h in col))col[h]=i; });
+    const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(h==='시료종류')h='검체명'; /* 예전 양식 호환 */ if(XHEAD.includes(h)&&!(h in col))col[h]=i; });
     const get=(r,h)=>col[h]==null?'':(r[col[h]]==null?'':r[col[h]]);
     const str=(r,h)=>String(get(r,h)).trim();
     let maxId=DB.receptions.reduce((m,x)=>Math.max(m,x.id),0), add=[], skip=0, unk=new Set();
