@@ -144,7 +144,7 @@
         <div class="full"><label class="fld">의뢰인주소</label><input id="f_addr" style="width:100%"></div>
         <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
         <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
-        <div><label class="fld">시료종류</label><select id="f_type"></select></div>
+        <div><label class="fld">검체명</label><select id="f_type"></select></div>
         <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
@@ -216,7 +216,7 @@ function load(){ try{ const s=localStorage.getItem(KEY); return s?migrate(JSON.p
 function migrate(d){ const sd=seed();
   if(!d.purposeV2){ d.purposeV2=1; d.purposes=sd.purposes; // 검사목적: 정기검사/참고 (구 검사분야 값 이어받음)
     d.receptions.forEach(r=>{ r.purposeId=(r.fieldId===2)?2:1; }); }
-  if(!d.typeV2){ d.typeV2=1; // 시료종류 목록 교체: 접수건에서 쓰던 옛 항목만 뒤에 남김
+  if(!d.typeV2){ d.typeV2=1; // 검체명 목록 교체: 접수건에서 쓰던 옛 항목만 뒤에 남김
     const used=new Set(d.receptions.map(r=>r.typeId));
     const keep=d.types.filter(t=>used.has(t.id)&&!sd.types.some(n=>n.id===t.id));
     d.types=sd.types.concat(keep);
@@ -301,7 +301,7 @@ function renderReception(){
       <input type="file" id="xl_file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importXlsx(this)">
     </div>
     <div class="card"><table>
-      <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>지역 <span class="fbtn" id="fb_region" onclick="openFilter(event,'region')" title="체크로 필터">▼</span></th><th>상호/명칭 <span class="fbtn" id="fb_client" onclick="openFilter(event,'client')" title="체크로 필터">▼</span></th><th>시료종류 <span class="fbtn" id="fb_type" onclick="openFilter(event,'type')" title="체크로 필터">▼</span></th><th>채수예정일 <span class="fbtn" id="fb_resv" onclick="openFilter(event,'resv')" title="체크로 필터">▼</span></th><th>상태 <span class="fbtn" id="fb_status" onclick="openFilter(event,'status')" title="체크로 필터">▼</span></th><th>메모 사항</th></tr></thead>
+      <thead><tr><th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th><th>접수일</th><th>지역 <span class="fbtn" id="fb_region" onclick="openFilter(event,'region')" title="체크로 필터">▼</span></th><th>상호/명칭 <span class="fbtn" id="fb_client" onclick="openFilter(event,'client')" title="체크로 필터">▼</span></th><th>검체명 <span class="fbtn" id="fb_type" onclick="openFilter(event,'type')" title="체크로 필터">▼</span></th><th>채수예정일 <span class="fbtn" id="fb_resv" onclick="openFilter(event,'resv')" title="체크로 필터">▼</span></th><th>상태 <span class="fbtn" id="fb_status" onclick="openFilter(event,'status')" title="체크로 필터">▼</span></th><th>메모 사항</th></tr></thead>
       <tbody id="recBody"></tbody>
     </table></div>`;
   initExportBar();
@@ -383,7 +383,7 @@ function exportXlsx(){
       &&(!XS.from&&!XS.to||r.resv)&&(!XS.from||r.resv>=XS.from)&&(!XS.to||r.resv<=XS.to))
     .sort((a,b)=>(a.resv||'9').localeCompare(b.resv||'9')||regionOf(a).localeCompare(regionOf(b))||a.id-b.id);
   if(!list.length)return alert('조건에 맞는 접수건이 없습니다');
-  const head=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모'];
+  const head=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','검체명','허가신고번호','시료채취자','메모'];
   const rows=list.map(r=>{ const pu=byId(DB.purposes,r.purposeId), ty=byId(DB.types,r.typeId);
     return [r.resv||'',regionOf(r),r.date,clientName(r),r.rep||'',r.receiver||'',r.tel||'',r.fax||'',r.mobile||'',
       r.addr||'',r.place||'',pu?pu.name:'',ty?ty.name:'',r.permit||'',r.sampler||'',r.memo||'']; });
@@ -400,7 +400,7 @@ function exportXlsx(){
   }
 }
 /* 엑셀 업로드: 첫 행 머리글 이름으로 열을 찾으므로, 위 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음 */
-const XHEAD=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모'];
+const XHEAD=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','검체명','허가신고번호','시료채취자','메모'];
 function downloadTemplate(){
   if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
   const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','지하수법','지하수(음용수)','','','']]);
@@ -420,15 +420,15 @@ function importXlsx(inp){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
     const hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='상호/명칭'));
     if(hi<0)return alert('첫 행에 "상호/명칭" 머리글이 있는 엑셀 파일이어야 합니다.\n("업로드 양식" 버튼으로 양식을 받을 수 있습니다)');
-    const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(XHEAD.includes(h)&&!(h in col))col[h]=i; });
+    const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(h==='검체명')h='검체명'; /* 예전 양식 호환 */ if(XHEAD.includes(h)&&!(h in col))col[h]=i; });
     const get=(r,h)=>col[h]==null?'':(r[col[h]]==null?'':r[col[h]]);
     const str=(r,h)=>String(get(r,h)).trim();
     let maxId=DB.receptions.reduce((m,x)=>Math.max(m,x.id),0), add=[], skip=0, unk=new Set();
     rows.slice(hi+1).forEach(r=>{
       if(!r.some(c=>String(c).trim()!==''))return;
       if(!str(r,'상호/명칭')){ skip++; return; }
-      const pu=DB.purposes.find(x=>x.name===str(r,'검사목적')), ty=DB.types.find(x=>x.name===str(r,'시료종류'));
-      if(str(r,'시료종류')&&!ty)unk.add(str(r,'시료종류'));
+      const pu=DB.purposes.find(x=>x.name===str(r,'검사목적')), ty=DB.types.find(x=>x.name===str(r,'검체명'));
+      if(str(r,'검체명')&&!ty)unk.add(str(r,'검체명'));
       const tid=ty?ty.id:null;
       add.push({id:++maxId,status:'RECEIVED',purposeId:pu?pu.id:null,typeId:tid,
         items:(DB.typeItems[tid]||[]).map((iid,i)=>({itemId:iid,meas:'',judge:'',fail:null,inspId:null,order:i})),
@@ -437,7 +437,7 @@ function importXlsx(inp){
         addr:str(r,'의뢰인주소'),place:str(r,'채수장소'),permit:str(r,'허가신고번호'),sampler:str(r,'시료채취자'),memo:str(r,'메모')}); });
     if(!add.length)return alert('등록할 행이 없습니다 (상호/명칭이 비어 있는 행은 제외됩니다)');
     if(!confirm(`${add.length}건을 접수 목록에 추가합니다.`+(skip?`\n상호/명칭이 없어 제외: ${skip}건`:'')
-      +(unk.size?`\n목록에 없는 시료종류(비워서 등록): ${[...unk].join(', ')}`:'')))return;
+      +(unk.size?`\n목록에 없는 검체명(비워서 등록): ${[...unk].join(', ')}`:'')))return;
     DB.receptions.push(...add); save();
     const ds=add.map(x=>x.date).sort(), q=document.getElementById('q_from'), t=document.getElementById('q_to');
     if(q&&ds[0]<q.value)q.value=ds[0]; if(t&&ds[ds.length-1]>t.value)t.value=ds[ds.length-1];
@@ -481,7 +481,7 @@ function confirmDel(){
 function renderTrash(){
   const rows=DB.trash.slice().reverse();
   document.getElementById('content').innerHTML=`<div class="card"><table>
-    <thead><tr><th>삭제일시</th><th>접수일</th><th>상호/명칭</th><th>시료종류</th><th>삭제 사유</th></tr></thead><tbody>${
+    <thead><tr><th>삭제일시</th><th>접수일</th><th>상호/명칭</th><th>검체명</th><th>삭제 사유</th></tr></thead><tbody>${
     rows.length? rows.map(r=>{ const t=byId(DB.types,r.typeId);
       return `<tr><td>${r.delAt}</td><td>${r.date}</td><td>${esc(clientName(r))||'-'}</td><td>${t?esc(t.name):'-'}</td>
         <td>${esc(r.delReason)}${r.delMemo?`<br><span style="color:var(--muted);font-size:12px">${esc(r.delMemo)}</span>`:''}</td></tr>`; }).join('')
@@ -613,7 +613,7 @@ function renderCalendar(){
       <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line);display:flex;align-items:center">
         <span>${CAL.sel} 채수 일정 (${sel.length}건)</span><span class="sp" style="flex:1"></span>
         <button class="pri" onclick="calNew('${CAL.sel}')">이 날짜로 신규 등록</button></div>
-      <table><thead><tr><th>상호/명칭</th><th>시료종류</th><th>채수장소</th><th>시료채취자</th><th>연락처</th></tr></thead><tbody>${
+      <table><thead><tr><th>상호/명칭</th><th>검체명</th><th>채수장소</th><th>시료채취자</th><th>연락처</th></tr></thead><tbody>${
         sel.length? sel.map(r=>{ const t=byId(DB.types,r.typeId);
           return `<tr style="cursor:pointer" onclick="calEdit(${r.id})"><td>${esc(clientName(r))||'-'}</td><td>${t?esc(t.name):'-'}</td><td>${esc(r.place)||'-'}</td><td>${esc(r.sampler)||'-'}</td><td>${esc(r.mobile||r.tel)||'-'}</td></tr>`; }).join('')
         : `<tr><td colspan="5" class="empty">이 날짜에 채수 일정이 없습니다</td></tr>` }</tbody></table>
@@ -627,7 +627,7 @@ function renderStat(){
   const cntBy=st=>recs.filter(r=>r.status===st).length;
   const fixed=recs.filter(r=>r.resv).length;
   const unset=recs.filter(r=>!r.resv).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
-  // 시료종류별 접수 건수
+  // 검체명별 접수 건수
   const byType={}; recs.forEach(r=>{ const t=byId(DB.types,r.typeId); const k=t?t.name:'(미지정)';
     byType[k]=(byType[k]||0)+1; });
   c.innerHTML=`
@@ -639,7 +639,7 @@ function renderStat(){
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="card" style="padding:0">
-        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">시료종류별 접수 건수</div>
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">검체명별 접수 건수</div>
         <table><tbody>${ Object.keys(byType).length? Object.entries(byType).map(([k,v])=>
           `<tr><td>${k}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
           : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
