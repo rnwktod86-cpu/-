@@ -285,6 +285,7 @@ function renderReception(){
       <span class="sp" style="flex:1"></span>
       <button class="pri" onclick="openRec(null)">신규 등록</button>
       <button onclick="editSel()">수정</button>
+      <button onclick="printSelSampling()" title="체크한 접수건의 시료 채취 기록부 인쇄">채취기록부</button>
       <button class="dgr" onclick="delSel()">삭제</button>
     </div>
     <div class="xbar">
@@ -639,13 +640,90 @@ function renderCalendar(){
     <div class="card" style="margin-top:14px">
       <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line);display:flex;align-items:center">
         <span>${CAL.sel} 채수 일정${CAL.person?' · '+esc(CAL.person):''} (${sel.length}건)</span><span class="sp" style="flex:1"></span>
-        <button class="pri" onclick="calNew('${CAL.sel}',${CAL.person?`'${esc(CAL.person)}'`:'null'})">이 날짜로 신규 등록</button></div>
+        <button onclick="printSampling([${sel.map(r=>r.id)}])" ${sel.length?'':'disabled'}>이 날짜 채취기록부 인쇄</button>
+        <button class="pri" style="margin-left:6px" onclick="calNew('${CAL.sel}',${CAL.person?`'${esc(CAL.person)}'`:'null'})">이 날짜로 신규 등록</button></div>
       <table><thead><tr><th>담당자</th><th>상호/명칭</th><th>시료종류</th><th>채수장소</th><th>연락처</th></tr></thead><tbody>${
         sel.length? sel.map(r=>{ const t=byId(DB.types,r.typeId), pn=personOf(r), [bg,fg]=personColor(pn,people);
           return `<tr style="cursor:pointer" onclick="calEdit(${r.id})"><td><span class="pill" style="background:${bg};color:${fg}">${esc(pn)}</span></td><td>${esc(clientName(r))||'-'}</td><td>${t?esc(t.name):'-'}</td><td>${esc(r.place)||'-'}</td><td>${esc(r.mobile||r.tel)||'-'}</td></tr>`; }).join('')
         : `<tr><td colspan="5" class="empty">이 날짜에 채수 일정이 없습니다</td></tr>` }</tbody></table>
     </div>`;
 }
+
+/* ===================== 시료 채취 기록부 (PICO-QP-03-04 Rev.02 양식, 인쇄/PDF 저장용) ===================== */
+const REC_ROWS=[ // [분석항목, [용기/시료량...], [[보존제,첨가량]...]]
+  ['냄새, 맛, 농약류, 기타',['G 500 mL','G 1 L'],[['티오황산나트륨','1 mL']]],
+  ['금속류',['P 50 mL'],[['질산(1+1)','200 µL']]],
+  ['페놀류',['G 40 mL'],[['황산(1+5)','200 µL'],['아황산나트륨','40 µL']]],
+  ['시안',['G 40 mL'],[['수산화나트륨','100 µL'],['티오황산나트륨','40 µL']]],
+  ['휘발성유기물질',['G 40 mL *2'],[['염산(1+1)','200 µL'],['티오황산나트륨','40 µL']]],
+  ['미생물',['P 150 mL'],[['티오황산나트륨','1 mL']]],
+  ['경도, 과망간산, 세제, 음이온, 기타',['P 1 L'],[]],
+  ['암모니아성질소',['G 40 mL'],[['황산(1+5)','200 µL'],['아황산나트륨','40 µL']]],
+  ['소독부산물',['G 250 mL'],[['염화암모늄','250 µL'],['염산(1+1)','1 mL']]],
+  ['할로아세틱, 포름알데히드',['G 250 mL'],[['염화암모늄','250 µL']]],
+  ['유기물질',['G 1 L'],[]],
+  ['',[''],[]]];
+const REC_LAWS=['지하수법','먹는물관리법','수도법','식품위생법'];
+const REC_KINDS=['정기검사','허가용','준공용','참고용','재검사'];
+const recNo=r=>`${(r.date||'').replace(/-/g,'')}-${String(r.id).padStart(3,'0')}`;
+function samplingForm(r){
+  const pu=byId(DB.purposes,r.purposeId), law=pu?pu.name:'', ty=byId(DB.types,r.typeId);
+  const ck=(on,t)=>`${on?'☑':'☐'} ${t}`;
+  const other=law&&!REC_LAWS.includes(law);
+  const rd=(r.resv||'').split('-');
+  const rows=REC_ROWS.map(([n,cs,ps])=>`<tr><td>☐ ${esc(n)}</td><td>${cs.map(esc).join('<br>')}</td>
+    <td style="text-align:left">${ps.map(x=>'☐ '+esc(x[0])).join('<br>')||'-'}</td><td>${ps.map(x=>esc(x[1])).join('<br>')}</td><td></td><td></td></tr>`).join('');
+  return `<div class="pg"><div class="ttl">시료 채취 기록부</div>
+  <table>
+   <tr><th rowspan="4" class="v">의뢰업체</th><th>접수번호</th><td>${recNo(r)}</td><th>의뢰인</th><td>${esc(r.receiver||r.rep||'')}</td></tr>
+   <tr><th>연락처</th><td>${esc(r.mobile||r.tel||'')}</td><th>신고/관리번호</th><td>${esc(r.permit||'')}</td></tr>
+   <tr><th>의뢰인 주소</th><td colspan="3" style="text-align:left">${esc(r.addr||'')}</td></tr>
+   <tr><th>상호/명칭</th><td colspan="3" style="text-align:left">${esc(clientName(r))}</td></tr>
+   <tr><th colspan="2">검사목적/근거</th><td colspan="3" style="text-align:left;line-height:1.7">
+     ${REC_KINDS.map(k=>ck(false,k)).join('&nbsp;&nbsp;')}<br>
+     ${REC_LAWS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${ck(other,'기타')} ( ${other?esc(law):''} )</td></tr>
+   <tr><th colspan="2">발송 방법</th><td colspan="3" style="text-align:left">☐ 우편 &nbsp;&nbsp; ☐ 문자 &nbsp;&nbsp; ☐ e-mail &nbsp;&nbsp; (　　　　　　　　　　　　)</td></tr>
+   <tr><th colspan="2">시료명</th><td>${esc(clientName(r))}</td><th>시료 종류</th><td>${ty?esc(ty.name):''}<br><span class="s">(□ 현장이중시료)</span></td></tr>
+   <tr><th colspan="2">채수 일자<br><span class="s">(채취 시간)</span></th><td>${rd.length==3?`${rd[0]}년 ${+rd[1]}월 ${+rd[2]}일`:''}<br><span class="s">(　　:　　)</span></td><th>채취장소</th><td>${esc(r.place||'')}</td></tr>
+  </table>
+  <div class="sec">시료용기 및 시료보존제</div>
+  <table class="c"><tr><th>분석 항목</th><th>용기/시료량</th><th>보존제 종류</th><th>보존제 첨가량</th><th>첨가 시간</th><th>비고</th></tr>${rows}</table>
+  <table style="margin-top:6px">
+   <tr><th style="width:90px">현장측정값</th><td style="text-align:left;line-height:1.7">pH (　　　　) (보정값 : 1.　　　　 2.　　　　 3.　　　　 ) / 잔류염소 (　　　　)<br>기타 (　　　　　　　　　　　　)</td></tr>
+   <tr><th>특이사항</th><td style="height:36px"></td></tr>
+   <tr><th>시료 운영방법<br>및 운송시간</th><td style="text-align:left">4℃가 되도록 아이스팩을 포함한 아이스박스를 이용하여 운반 (운송시간: 　　　　　　　　　　　　)</td></tr>
+   <tr><th>입금계좌</th><td style="text-align:left">(농협) 301-0371-0571-31 예금주: 주식회사 피코테스팅 &nbsp;&nbsp;&nbsp; <b>검사수수료</b> 　　　　　　　　 원</td></tr>
+  </table>
+  <p class="s2">먹는물수질기준등에관한규칙 제3조, 지하수법 제20조, 수도법 제33조 규정에 의하여 위와 같이 신청합니다.</p>
+  <p style="text-align:right;margin:2px 0">　　　년　　　월　　　일 　　 의뢰인 : ${esc(r.receiver||r.rep||'')}　　　　(서명 또는 인)</p>
+  <p class="s2">위와 같이 시료 채취 및 현장 측정한 내용을 사실대로 기록합니다.</p>
+  <table>
+   <tr><th rowspan="2" style="width:90px">접 수 담 당 자<br>채취자</th><th>소속</th><td>㈜피코테스팅</td><th>직급</th><td>-</td><th>성명</th><td>${esc(r.sampler||'')} (서명 또는 인)</td></tr>
+   <tr><th>소속</th><td>㈜피코테스팅</td><th>직급</th><td>-</td><th>성명</th><td>(서명 또는 인)<br><span class="s">실험실인수자(기술책임자)</span></td></tr>
+  </table>
+  <p class="s2" style="text-align:center">주소: 경상남도 양산시 물금읍 증산역로 180 4층 ㈜피코테스팅 (우편번호 : 50614)<br>Tel. 055)785-5871 &nbsp; Fax. 055)785-5870</p>
+  <div class="ft"><span>PICO-QP-03-04 &nbsp; Rev. 02</span><span>㈜피코테스팅</span><span>A4(210x297mm)</span></div></div>`;
+}
+function printSampling(ids){
+  const rs=ids.map(id=>byId(DB.receptions,id)).filter(Boolean);
+  if(!rs.length)return alert('채취기록부를 출력할 접수건이 없습니다');
+  const w=window.open('','_blank'); if(!w)return alert('팝업이 차단되었습니다. 팝업을 허용해 주세요');
+  w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>시료 채취 기록부</title><style>
+   @page{size:A4;margin:10mm} body{margin:0;font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:11px;color:#000}
+   .pg{width:190mm;margin:0 auto;page-break-after:always} .pg:last-child{page-break-after:auto}
+   .ttl{font-size:22px;font-weight:700;text-align:center;letter-spacing:6px;margin:4px 0 8px}
+   table{width:100%;border-collapse:collapse;margin-bottom:0} th,td{border:1px solid #000;padding:3px 5px;text-align:center;font-size:11px;vertical-align:middle}
+   th{background:#f0f0f0;font-weight:700} th.v{width:28px;writing-mode:vertical-rl;letter-spacing:4px}
+   .c td{font-size:10.5px;height:21px} .c td:first-child{text-align:left} .sec{font-weight:700;margin:8px 0 3px}
+   .s{font-size:10px;font-weight:400} .s2{font-size:10.5px;margin:6px 0 2px}
+   .ft{display:flex;justify-content:space-between;font-size:10px;margin-top:6px}
+   .bar{position:fixed;top:0;left:0;right:0;background:#2f5aa8;color:#fff;padding:8px;text-align:center}
+   .bar button{padding:5px 14px} @media print{.bar{display:none}}
+  </style></head><body><div class="bar"><button onclick="print()">인쇄 / PDF 저장</button> &nbsp; ${rs.length}건</div><div style="height:54px" class="bar2"></div>
+  ${rs.map(samplingForm).join('')}<style>@media print{.bar2{display:none}}</style></body></html>`);
+  w.document.close();
+}
+function printSelSampling(){ if(!selIds.size)return alert('채취기록부를 출력할 접수건을 체크하세요'); printSampling([...selIds]); }
 
 /* ===================== 통계·현황 ===================== */
 function renderStat(){
