@@ -144,8 +144,9 @@
           <div><label class="fld">휴대전화</label><input id="f_mobile" style="width:100%"></div></div></div>
         <div class="full"><label class="fld">의뢰인주소</label><input id="f_addr" style="width:100%"></div>
         <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
-        <div><label class="fld">검사목적</label><select id="f_purpose"></select></div>
+        <div><label class="fld">검사목적</label><select id="f_purpose" onchange="purposeEtcToggle()"></select></div>
         <div><label class="fld">시료종류</label><select id="f_type"></select></div>
+        <div class="full" id="f_pe_wrap" style="display:none"><label class="fld">기타 ( 검사목적 직접 입력 )</label><input id="f_purpose_etc" style="width:100%"></div>
         <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
@@ -184,9 +185,9 @@ function seed(){
   return {
     seq:{}, // 연도별 접수 일련번호
     fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
-    purposes:[{id:1,name:'지하수법'},{id:2,name:'먹는물관리법'},{id:3,name:'수도법'},{id:4,name:'학교보건법'},
-      {id:5,name:'식품위생법'},{id:6,name:'체육시설의 이용에 관한 법률'},{id:7,name:'공중위생법'},
-      {id:8,name:'친환경농업육성법'},{id:9,name:'기타'}],
+    purposeV2:1, purposeV3:1, purposeV4:1, typeV2:1,
+    purposes:[{id:1,name:'정기검사'},{id:2,name:'허가용'},{id:3,name:'준공용'},{id:4,name:'참고용'},{id:5,name:'재검사'},
+      {id:6,name:'지하수법'},{id:7,name:'먹는물관리법'},{id:8,name:'수도법'},{id:9,name:'식품위생법'},{id:10,name:'기타'}],
     types:[
       {id:5,fid:1,name:'지하수(음용수)'},{id:6,fid:1,name:'지하수(생활용수)'},
       {id:7,fid:1,name:'지하수(농-어업용수)'},{id:8,fid:1,name:'저수조'},
@@ -225,6 +226,8 @@ function migrate(d){ const sd=seed();
     sd.types.forEach(t=>{ if(!d.typeItems[t.id]) d.typeItems[t.id]=sd.typeItems[t.id]; }); }
   if(!d.purposeV3){ d.purposeV3=1; d.purposes=sd.purposes; // 검사목적: 관련 법령 목록으로 교체, 기존 접수건은 '기타'로
     d.receptions.forEach(r=>{ r.purposeId=9; }); }
+  if(!d.purposeV4){ d.purposeV4=1; d.purposes=sd.purposes; // 검사목적: 정기검사~기타 10개 항목으로 교체 (구 법령 id → 새 id)
+    const mp={1:6,2:7,3:8,5:9}; d.receptions.concat(d.trash||[]).forEach(r=>{ if(r.purposeId){ r.purposeId=mp[r.purposeId]||10; } }); }
   if(!d.trash)d.trash=[];
   return d; }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
@@ -387,7 +390,7 @@ function exportXlsx(){
   const head=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모'];
   const rows=list.map(r=>{ const pu=byId(DB.purposes,r.purposeId), ty=byId(DB.types,r.typeId);
     return [r.resv||'',regionOf(r),r.date,clientName(r),r.rep||'',r.receiver||'',r.tel||'',r.fax||'',r.mobile||'',
-      r.addr||'',r.place||'',pu?pu.name:'',ty?ty.name:'',r.permit||'',r.sampler||'',r.memo||'']; });
+      r.addr||'',r.place||'',pu?(pu.name==='기타'&&r.purposeEtc?`기타(${r.purposeEtc})`:pu.name):'',ty?ty.name:'',r.permit||'',r.sampler||'',r.memo||'']; });
   const name=`접수목록_${XS.region||'전체지역'}_${XS.from||'처음'}~${XS.to||'끝'}`;
   if(window.XLSX){
     const ws=XLSX.utils.aoa_to_sheet([head].concat(rows));
@@ -404,7 +407,7 @@ function exportXlsx(){
 const XHEAD=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모'];
 function downloadTemplate(){
   if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
-  const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','지하수법','지하수(음용수)','','','']]);
+  const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','정기검사','지하수(음용수)','','','']]);
   ws['!cols']=XHEAD.map(()=>({wch:16})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'접수목록');
   XLSX.writeFile(wb,'접수_업로드양식.xlsx'); }
 function xlDate(v){
@@ -428,10 +431,10 @@ function importXlsx(inp){
     rows.slice(hi+1).forEach(r=>{
       if(!r.some(c=>String(c).trim()!==''))return;
       if(!str(r,'상호/명칭')){ skip++; return; }
-      const pu=DB.purposes.find(x=>x.name===str(r,'검사목적')), ty=DB.types.find(x=>x.name===str(r,'시료종류'));
+      const pn=str(r,'검사목적'), em=pn.match(/^기타\s*\((.*)\)$/), pu=DB.purposes.find(x=>x.name===(em?'기타':pn)||x.name===pn), ty=DB.types.find(x=>x.name===str(r,'시료종류'));
       if(str(r,'시료종류')&&!ty)unk.add(str(r,'시료종류'));
       const tid=ty?ty.id:null;
-      add.push({id:++maxId,status:'RECEIVED',purposeId:pu?pu.id:null,typeId:tid,
+      add.push({id:++maxId,status:'RECEIVED',purposeId:pu?pu.id:null,purposeEtc:em?em[1].trim():'',typeId:tid,
         items:(DB.typeItems[tid]||[]).map((iid,i)=>({itemId:iid,meas:'',judge:'',fail:null,inspId:null,order:i})),
         clientName:str(r,'상호/명칭'),date:xlDate(get(r,'접수일'))||today(),resv:xlDate(get(r,'채수예정일')),
         rep:str(r,'대표자'),receiver:str(r,'의뢰인'),tel:str(r,'일반전화'),fax:str(r,'팩스'),mobile:str(r,'휴대전화'),
@@ -496,6 +499,8 @@ function refreshPurposeType(){
   const tv=document.getElementById('f_type').value;
   fillSelect(document.getElementById('f_type'), DB.types,tv||null,'(선택)');
 }
+const isEtcPurpose=id=>{ const p=byId(DB.purposes,+id); return !!p&&p.name==='기타'; };
+function purposeEtcToggle(){ document.getElementById('f_pe_wrap').style.display=isEtcPurpose(document.getElementById('f_purpose').value)?'':'none'; }
 function openRec(id){
   editRecId=id;
   document.getElementById('f_cs').value=''; document.getElementById('f_cs_res').style.display='none';
@@ -506,6 +511,7 @@ function openRec(id){
     refreshPurposeType();
     document.getElementById('f_purpose').value=r.purposeId||0;
     document.getElementById('f_type').value=r.typeId||0;
+    document.getElementById('f_purpose_etc').value=r.purposeEtc||'';
     document.getElementById('f_client').value=clientName(r);
     document.getElementById('f_place').value=r.place||'';
     document.getElementById('f_addr').value=r.addr||'';
@@ -519,10 +525,10 @@ function openRec(id){
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
-    document.getElementById('f_date').value=today(); refreshPurposeType();
+    document.getElementById('f_date').value=today(); refreshPurposeType(); document.getElementById('f_purpose_etc').value='';
     ['f_client','f_memo','f_permit','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
-  document.getElementById('recMask').classList.add('on');
+  purposeEtcToggle(); document.getElementById('recMask').classList.add('on');
 }
 /* 기존고객 검색: 이전 접수건에서 고객을 모아 선택하면 입력칸 자동 채움 */
 function customers(){
@@ -552,7 +558,7 @@ function saveRec(){
   const g=id=>document.getElementById(id).value;
   const typeId=+g('f_type');
   const rec={
-    purposeId:+g('f_purpose')||null, typeId:typeId||null,
+    purposeId:+g('f_purpose')||null, purposeEtc:isEtcPurpose(g('f_purpose'))?g('f_purpose_etc').trim():'', typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
     place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), permit:g('f_permit').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
@@ -669,7 +675,7 @@ const recNo=r=>`${(r.date||'').replace(/-/g,'')}-${String(r.id).padStart(3,'0')}
 function samplingForm(r){
   const pu=byId(DB.purposes,r.purposeId), law=pu?pu.name:'', ty=byId(DB.types,r.typeId);
   const ck=(on,t)=>`${on?'☑':'☐'} ${t}`;
-  const other=law&&!REC_LAWS.includes(law);
+  const other=law==='기타', etc=other?(r.purposeEtc||''):'';
   const rd=(r.resv||'').split('-');
   const rows=REC_ROWS.map(([n,cs,ps])=>`<tr><td>☐ ${esc(n)}</td><td>${cs.map(esc).join('<br>')}</td>
     <td style="text-align:left">${ps.map(x=>'☐ '+esc(x[0])).join('<br>')||'-'}</td><td>${ps.map(x=>esc(x[1])).join('<br>')}</td><td></td><td></td></tr>`).join('');
@@ -680,8 +686,8 @@ function samplingForm(r){
    <tr><th>의뢰인 주소</th><td colspan="3" style="text-align:left">${esc(r.addr||'')}</td></tr>
    <tr><th>상호/명칭</th><td colspan="3" style="text-align:left">${esc(clientName(r))}</td></tr>
    <tr><th colspan="2">검사목적/근거</th><td colspan="3" style="text-align:left;line-height:1.7">
-     ${REC_KINDS.map(k=>ck(false,k)).join('&nbsp;&nbsp;')}<br>
-     ${REC_LAWS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${ck(other,'기타')} ( ${other?esc(law):''} )</td></tr>
+     ${REC_KINDS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>
+     ${REC_LAWS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${ck(other,'기타')} ( ${esc(etc)} )</td></tr>
    <tr><th colspan="2">발송 방법</th><td colspan="3" style="text-align:left">☐ 우편 &nbsp;&nbsp; ☐ 문자 &nbsp;&nbsp; ☐ e-mail &nbsp;&nbsp; (　　　　　　　　　　　　)</td></tr>
    <tr><th colspan="2">시료명</th><td>${esc(clientName(r))}</td><th>시료 종류</th><td>${ty?esc(ty.name):''}<br><span class="s">(□ 현장이중시료)</span></td></tr>
    <tr><th colspan="2">채수 일자<br><span class="s">(채취 시간)</span></th><td>${rd.length==3?`${rd[0]}년 ${+rd[1]}월 ${+rd[2]}일`:''}<br><span class="s">(　　:　　)</span></td><th>채취장소</th><td>${esc(r.place||'')}</td></tr>
