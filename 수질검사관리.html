@@ -676,39 +676,51 @@ function samplingForm(r){
   const pu=byId(DB.purposes,r.purposeId), law=pu?pu.name:'', ty=byId(DB.types,r.typeId);
   const ck=(on,t)=>`${on?'☑':'☐'} ${t}`;
   const other=law==='기타', etc=other?(r.purposeEtc||''):'';
-  const rd=(r.resv||'').split('-');
-  const rows=REC_ROWS.map(([n,cs,ps])=>`<tr><td>☐ ${esc(n)}</td><td>${cs.map(esc).join('<br>')}</td>
-    <td style="text-align:left">${ps.map(x=>'☐ '+esc(x[0])).join('<br>')||'-'}</td><td>${ps.map(x=>esc(x[1])).join('<br>')}</td><td></td><td></td></tr>`).join('');
+  const rd=(r.resv||'').split('-'), who=esc(r.receiver||r.rep||'');
+  const rows=REC_ROWS.map(([n,cs,ps],ri)=>{ const k=Math.max(cs.length,ps.length,1), out=[];
+    for(let i=0;i<k;i++){ let t='';
+      if(i===0) t+=`<td rowspan="${k}" class="ck">☐</td><td rowspan="${k}">${esc(n)}</td>`;
+      if(cs.length===1){ if(i===0) t+=`<td rowspan="${k}">${esc(cs[0])}</td>`; } else t+=`<td>${esc(cs[i]||'')}</td>`;
+      if(ps.length===0){ if(i===0) t+=`<td rowspan="${k}" colspan="2">-</td>`; }
+      else if(ps.length===1&&k>1){ if(i===0) t+=`<td rowspan="${k}">☐ ${esc(ps[0][0])}</td><td rowspan="${k}">${esc(ps[0][1])}</td>`; }
+      else t+=`<td>${ps[i]?'☐ '+esc(ps[i][0]):''}</td><td>${ps[i]?esc(ps[i][1]):''}</td>`;
+      if(ri===0&&i===0) t+=`<td rowspan="${REC_ROWS.reduce((m,x)=>m+Math.max(x[1].length,x[2].length,1),0)}"></td>`;
+      t+=`<td></td>`;
+      out.push(`<tr>${i===0&&ri===0?'<td rowspan="'+REC_ROWS.reduce((m,x)=>m+Math.max(x[1].length,x[2].length,1),0)+'" class="v">시료용기 및<br>시료보존제</td>':''}${t}</tr>`); }
+    return out.join(''); }).join('');
   return `<div class="pg"><div class="ttl">시료 채취 기록부</div>
-  <table>
-   <tr><th rowspan="4" class="v">의뢰업체</th><th>접수번호</th><td>${recNo(r)}</td><th>의뢰인</th><td>${esc(r.receiver||r.rep||'')}</td></tr>
-   <tr><th>연락처</th><td>${esc(r.mobile||r.tel||'')}</td><th>신고/관리번호</th><td>${esc(r.permit||'')}</td></tr>
-   <tr><th>의뢰인 주소</th><td colspan="3" style="text-align:left">${esc(r.addr||'')}</td></tr>
-   <tr><th>상호/명칭</th><td colspan="3" style="text-align:left">${esc(clientName(r))}</td></tr>
-   <tr><th colspan="2">검사목적/근거</th><td colspan="3" style="text-align:left;line-height:1.7">
-     ${REC_KINDS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>
-     ${REC_LAWS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${ck(other,'기타')} ( ${esc(etc)} )</td></tr>
-   <tr><th colspan="2">발송 방법</th><td colspan="3" style="text-align:left">☐ 우편 &nbsp;&nbsp; ☐ 문자 &nbsp;&nbsp; ☐ e-mail &nbsp;&nbsp; (　　　　　　　　　　　　)</td></tr>
-   <tr><th colspan="2">시료명</th><td>${esc(clientName(r))}</td><th>시료 종류</th><td>${ty?esc(ty.name):''}<br><span class="s">(□ 현장이중시료)</span></td></tr>
-   <tr><th colspan="2">채수 일자<br><span class="s">(채취 시간)</span></th><td>${rd.length==3?`${rd[0]}년 ${+rd[1]}월 ${+rd[2]}일`:''}<br><span class="s">(　　:　　)</span></td><th>채취장소</th><td>${esc(r.place||'')}</td></tr>
+  <table class="g6">
+   <colgroup><col style="width:13%"><col style="width:21%"><col style="width:11%"><col style="width:21%"><col style="width:14%"><col style="width:20%"></colgroup>
+   <tr><th>의뢰업체</th><td colspan="3">${esc(clientName(r))}</td><th>접수번호</th><td>${recNo(r)}</td></tr>
+   <tr><th>의뢰인</th><td>${who}</td><th>연락처</th><td>${esc(r.mobile||r.tel||'')}</td><th class="sm">신고/관리번호</th><td>${esc(r.permit||'')}</td></tr>
+   <tr><th>의뢰인 주소</th><td colspan="5" class="l">${esc(r.addr||'')}</td></tr>
+   <tr><th>검사목적/근거</th><td colspan="3" class="l" style="line-height:1.75">${REC_KINDS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${REC_LAWS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${ck(other,'기타')} ( ${esc(etc)} )</td>
+     <th>발송 방법</th><td class="l" style="line-height:1.75"><span style="white-space:nowrap;font-size:10px">☐ 우편 ☐ 문자 ☐ e-mail</span><br>(　　　　　　　　　　　 )</td></tr>
+   <tr><th>시료명</th><td></td><th>시료 종류</th><td>${ty?esc(ty.name):''}<br><span class="s">(□ 현장이중시료)</span></td><th>채수 일자<br><span class="s">(채취 시간)</span></th><td>${rd.length==3?`${rd[0]}.${+rd[1]}.${+rd[2]}`:''}</td></tr>
+   <tr><th>채취장소</th><td colspan="5" class="l">${esc(r.place||'')}</td></tr>
   </table>
-  <div class="sec">시료용기 및 시료보존제</div>
-  <table class="c"><tr><th>분석 항목</th><th>용기/시료량</th><th>보존제 종류</th><th>보존제 첨가량</th><th>첨가 시간</th><th>비고</th></tr>${rows}</table>
-  <table style="margin-top:6px">
-   <tr><th style="width:90px">현장측정값</th><td style="text-align:left;line-height:1.7">pH (　　　　) (보정값 : 1.　　　　 2.　　　　 3.　　　　 ) / 잔류염소 (　　　　)<br>기타 (　　　　　　　　　　　　)</td></tr>
-   <tr><th>특이사항</th><td style="height:36px"></td></tr>
-   <tr><th>시료 운영방법<br>및 운송시간</th><td style="text-align:left">4℃가 되도록 아이스팩을 포함한 아이스박스를 이용하여 운반 (운송시간: 　　　　　　　　　　　　)</td></tr>
-   <tr><th>입금계좌</th><td style="text-align:left">(농협) 301-0371-0571-31 예금주: 주식회사 피코테스팅 &nbsp;&nbsp;&nbsp; <b>검사수수료</b> 　　　　　　　　 원</td></tr>
+  <table class="c">
+   <colgroup><col style="width:9%"><col style="width:4%"><col style="width:20%"><col style="width:13%"><col style="width:19%"><col style="width:12%"><col style="width:12%"><col style="width:11%"></colgroup>
+   <tr><th colspan="2" style="border-bottom:0"></th><th>분석 항목</th><th>용기/시료량</th><th>보존제 종류</th><th>보존제 첨가량</th><th>첨가 시간</th><th>비고</th></tr>${rows}</table>
+  <table class="g4">
+   <colgroup><col style="width:13%"><col style="width:52%"><col style="width:13%"><col style="width:22%"></colgroup>
+   <tr><th>현장측정값</th><td class="l">pH (　　　) (보정값 : 1.　　　　　 2.　　　　　 3.　　　　　 ) /</td><th>잔류염소</th><td></td></tr>
+   <tr><th>기타</th><td colspan="3"></td></tr>
+   <tr><th>특이사항</th><td colspan="3" style="height:20px"></td></tr>
+   <tr><th>시료 운영방법<br>및 운송시간</th><td colspan="3" class="l">4℃가 되도록 아이스팩을 포함한 아이스박스를 이용하여 운반 (운송시간:　　　　　　　　　　　　　　　　　 )</td></tr>
+   <tr><th>입금계좌</th><td class="l">(농협) 301-0371-0571-31 예금주: 주식회사 피코테스팅</td><th>검사수수료</th><td style="text-align:right">원</td></tr>
   </table>
-  <p class="s2">먹는물수질기준등에관한규칙 제3조, 지하수법 제20조, 수도법 제33조 규정에 의하여 위와 같이 신청합니다.</p>
-  <p style="text-align:right;margin:2px 0">　　　년　　　월　　　일 　　 의뢰인 : ${esc(r.receiver||r.rep||'')}　　　　(서명 또는 인)</p>
-  <p class="s2">위와 같이 시료 채취 및 현장 측정한 내용을 사실대로 기록합니다.</p>
-  <table>
-   <tr><th rowspan="2" style="width:90px">접 수 담 당 자<br>채취자</th><th>소속</th><td>㈜피코테스팅</td><th>직급</th><td>-</td><th>성명</th><td>${esc(r.sampler||'')} (서명 또는 인)</td></tr>
-   <tr><th>소속</th><td>㈜피코테스팅</td><th>직급</th><td>-</td><th>성명</th><td>(서명 또는 인)<br><span class="s">실험실인수자(기술책임자)</span></td></tr>
+  <div class="box"><p style="margin:2px 6px">먹는물수질기준등에관한규칙 제3조, 지하수법제 제20조, 수도법 제33조 규정에 의하여 위와 같이 신청합니다.</p>
+   <p style="text-align:center;margin:12px 0 2px;letter-spacing:2px">년　　　　월　　　　일</p>
+   <p style="text-align:center;margin:2px 0 4px;font-weight:700">의뢰인 : ${who}　　　　<span class="s" style="color:#888;font-weight:400">(서명 또는 인)</span></p></div>
+  <table class="b">
+   <colgroup><col style="width:15%"><col style="width:22%"><col style="width:15%"><col style="width:26%"><col style="width:22%"></colgroup>
+   <tr><td colspan="4" class="l">위와 같이 시료 채취 및 현장 측정한 내용을 사실대로 기록합니다.</td><th>접 수 담 당 자</th></tr>
+   <tr><th>채취자</th><td>소속　㈜피코테스팅</td><td>직급　　-</td><td>성명　${esc(r.sampler||'')}　<span class="s" style="color:#888">(서명 또는 인)</span></td><td rowspan="2"></td></tr>
+   <tr><th>실험실인수자<br>(기술책임자)</th><td>소속　㈜피코테스팅</td><td>직급　　-</td><td>성명　　　<span class="s" style="color:#888">(서명 또는 인)</span></td></tr>
   </table>
-  <p class="s2" style="text-align:center">주소: 경상남도 양산시 물금읍 증산역로 180 4층 ㈜피코테스팅 (우편번호 : 50614)<br>Tel. 055)785-5871 &nbsp; Fax. 055)785-5870</p>
-  <div class="ft"><span>PICO-QP-03-04 &nbsp; Rev. 02</span><span>㈜피코테스팅</span><span>A4(210x297mm)</span></div></div>`;
+  <div class="box" style="text-align:center;border-top:0;padding:2px 0;font-size:10.5px">주소: 경상남도 양산시 물금읍 증산역로 180 4층 ㈜피코테스팅 (우편번호 : 50614)<br>Tel. 055)785-5871 &nbsp; Fax. 055)785-5870</div>
+  <div class="ft"><span>PICO-QP-03-04</span><span>Rev. 02</span><span>㈜피코테스팅</span><span>A4(210x297mm)</span></div></div>`;
 }
 function printSampling(ids){
   const rs=ids.map(id=>byId(DB.receptions,id)).filter(Boolean);
@@ -718,11 +730,12 @@ function printSampling(ids){
    @page{size:A4;margin:10mm} body{margin:0;font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:11px;color:#000}
    .pg{width:190mm;margin:0 auto;page-break-after:always} .pg:last-child{page-break-after:auto}
    .ttl{font-size:22px;font-weight:700;text-align:center;letter-spacing:6px;margin:4px 0 8px}
-   table{width:100%;border-collapse:collapse;margin-bottom:0} th,td{border:1px solid #000;padding:3px 5px;text-align:center;font-size:11px;vertical-align:middle}
-   th{background:#f0f0f0;font-weight:700} th.v{width:28px;writing-mode:vertical-rl;letter-spacing:4px}
-   .c td{font-size:10.5px;height:21px} .c td:first-child{text-align:left} .sec{font-weight:700;margin:8px 0 3px}
+   table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:-1px} th,td{border:1px solid #000;padding:3px 5px;text-align:center;font-size:11px;vertical-align:middle;word-break:keep-all}
+   th{font-weight:700;background:#fff} th.sm{font-size:9.5px} td.l{text-align:left} td.ck{font-size:12px}
+   .c td{font-size:10.5px;height:20px;padding:1px 3px} .c td.v{font-weight:700;font-size:10.5px;line-height:1.5;word-break:keep-all}
+   .box{border:1px solid #000;margin-top:-1px;font-size:10.5px}
    .s{font-size:10px;font-weight:400} .s2{font-size:10.5px;margin:6px 0 2px}
-   .ft{display:flex;justify-content:space-between;font-size:10px;margin-top:6px}
+   .ft{display:flex;justify-content:space-between;font-size:10px;font-weight:700;margin-top:3px}
    .bar{position:fixed;top:0;left:0;right:0;background:#2f5aa8;color:#fff;padding:8px;text-align:center}
    .bar button{padding:5px 14px} @media print{.bar{display:none}}
   </style></head><body><div class="bar"><button onclick="print()">인쇄 / PDF 저장</button> &nbsp; ${rs.length}건</div><div style="height:54px" class="bar2"></div>
