@@ -145,12 +145,14 @@
         <div class="full"><label class="fld">의뢰인주소</label><input id="f_addr" style="width:100%"></div>
         <div class="full"><label class="fld">채수장소</label><input id="f_place" style="width:100%"></div>
         <div><label class="fld">검사목적</label><select id="f_purpose" onchange="purposeEtcToggle()"></select></div>
-        <div><label class="fld">시료종류</label><select id="f_type"></select></div>
+        <div><label class="fld">시료종류</label><select id="f_type" onchange="autoTests()"></select></div>
         <div class="full" id="f_pe_wrap" style="display:none"><label class="fld">기타 ( 검사목적 직접 입력 )</label><input id="f_purpose_etc" style="width:100%"></div>
         <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
-        <div class="full"><label class="fld">검사항목 (채취기록부 분석 항목에 체크 표시됩니다)</label>
+        <div class="full"><label class="fld" style="display:flex;align-items:center;gap:8px">검사항목 (채취기록부 분석 항목에 체크 표시됩니다)
+            <button type="button" style="margin-left:auto;padding:2px 9px;font-size:12px" onclick="applyDefaultTests(true)" title="선택한 시료종류의 기본 검사항목을 체크합니다">기본 항목 불러오기</button>
+            <button type="button" style="padding:2px 9px;font-size:12px" onclick="document.querySelectorAll('.f_tchk').forEach(x=>x.checked=false)">전체 해제</button></label>
           <div id="f_tests" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;border:1px solid #c4ccd6;border-radius:5px;padding:8px 10px"></div>
           <input id="f_test_etc" style="width:100%;margin-top:6px" placeholder="기타 검사항목 (직접 입력)"></div>
         <div class="full"><label class="fld">메모 사항</label><textarea id="f_memo" rows="4" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #c4ccd6;border-radius:5px"></textarea></div>
@@ -414,7 +416,7 @@ function downloadTemplate(){
   const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','정기검사','지하수(음용수)','','','','','금속류 | 미생물']]);
   ws['!cols']=XHEAD.map(()=>({wch:16})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'접수목록');
   XLSX.writeFile(wb,'접수_업로드양식.xlsx'); }
-function parseTests(txt){ const names=REC_ROWS.map(x=>x[0]).filter(Boolean).concat(TEST_ITEMS.map(t=>t.n)), tests=[], etc=[];
+function parseTests(txt){ const names=REC_ROWS.map(x=>x[0]).filter(Boolean).concat(TEST_ITEMS.map(t=>t.n),STD_ITEMS.map(t=>t.n)), tests=[], etc=[];
   txt.split('|').map(x=>x.trim()).filter(Boolean).forEach(x=>names.includes(x)?tests.push(x):etc.push(x));
   return {tests,testEtc:etc.join(', ')}; }
 function xlDate(v){
@@ -510,13 +512,23 @@ const isEtcPurpose=id=>{ const p=byId(DB.purposes,+id); return !!p&&p.name==='�
 function purposeEtcToggle(){ document.getElementById('f_pe_wrap').style.display=isEtcPurpose(document.getElementById('f_purpose').value)?'':'none'; }
 function testBoxes(sel){
   const cb=(v,es,lbl)=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="f_tchk" value="${esc(v)}" ${sel.includes(v)?'checked':''}> ${esc(lbl||v)}${es?` <span style="font-size:11px;color:var(--muted)">${es}</span>`:''}</label>`;
-  document.getElementById('f_tests').innerHTML=REC_ROWS.map((x,gi)=>({n:x[0],gi})).filter(x=>x.n).map(({n,gi})=>{
+  const stdBox=`<div style="grid-column:1/-1;border-bottom:1px dashed var(--line);padding-bottom:4px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">지하수(음용수) 수질기준 항목 <span style="font-weight:400">(냄새·맛은 아래 첫 묶음)</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px 12px;padding-left:8px">${STD_ITEMS.map(t=>cb(t.n,t.std,t.l)).join('')}</div></div>`;
+  document.getElementById('f_tests').innerHTML=stdBox+REC_ROWS.map((x,gi)=>({n:x[0],gi})).filter(x=>x.n).map(({n,gi})=>{
     const its=TEST_ITEMS.filter(t=>t.g===gi);
     return its.length? `<div style="grid-column:1/-1;border-bottom:1px dashed var(--line);padding-bottom:4px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">${esc(n)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;padding-left:8px">${its.map(t=>cb(t.n,t.es)).join('')}${cb(n,'','그 외 항목 (이 줄 전체)')}</div></div>` : cb(n,''); }).join('')+
   `<div style="grid-column:1/-1"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">방사성 물질 (염지하수 · 채취기록부 '기타'에 표시)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;padding-left:8px">${TEST_ITEMS.filter(t=>t.g<0).map(t=>cb(t.n,t.es)).join('')}</div></div>`; }
-const testRow=(r,gi)=>{ const sel=r.tests||[], n=REC_ROWS[gi][0]; return sel.includes(n)||TEST_ITEMS.some(t=>t.g===gi&&sel.includes(t.n)); };
+const testRow=(r,gi)=>{ const sel=r.tests||[], n=REC_ROWS[gi][0]; return sel.includes(n)||TEST_ITEMS.concat(STD_ITEMS).some(t=>t.g===gi&&sel.includes(t.n)); };
+/* 시료종류별 기본 검사항목 (시료종류를 고르면 자동 체크 · 필요시 수정 가능). 항목명은 TEST_ITEMS / 분석 항목 줄 이름과 같아야 함 */
+const TYPE_TESTS=()=>({
+  '지하수(음용수)':STD_ITEMS.map(t=>t.n).concat(['냄새','맛'])});
+function applyDefaultTests(manual){
+  const t=byId(DB.types,+document.getElementById('f_type').value), list=t&&TYPE_TESTS()[t.name];
+  if(!list){ if(manual)alert('이 시료종류에는 지정된 기본 검사항목이 없습니다'); return; }
+  document.querySelectorAll('.f_tchk').forEach(x=>{ if(list.includes(x.value))x.checked=true; }); }
+function autoTests(){ if(!document.querySelector('.f_tchk:checked'))applyDefaultTests(false); }
 const testsOf=r=>(r.tests||[]).concat(r.testEtc?[r.testEtc]:[]);
 function openRec(id){
   editRecId=id;
@@ -705,6 +717,23 @@ const TEST_ITEMS=[
   {n:'불소이온(이온크로마토그래피)',es:'ES 05351.1b',g:6},{n:'불소이온(자외선/가시선 분광법)',es:'ES 05351.2d',g:6},
   /* g:-1 = 채취기록부에 전용 줄이 없는 항목 → '기타' 칸에 표시 */
   {n:'세슘(Cs-137)',es:'ES 05801.1',g:-1},{n:'스트론튬(Sr-90)',es:'ES 05802.1',g:-1},{n:'삼중수소',es:'ES 05803.1',g:-1}];
+const STD_ITEMS=[ // 지하수(음용수) 수질기준 (n=저장 이름, l=표시 이름, std=기준, g=채취기록부 분석 항목 줄). 냄새·맛은 TEST_ITEMS 사용
+  {n:'일반세균',std:'100CFU/mL 이하',g:5}, {n:'총대장균군',std:'불검출/100mL',g:5}, {n:'분원성대장균군',std:'불검출/100mL',g:5},
+  {n:'대장균',std:'불검출/100mL',g:5}, {n:'납',std:'0.01mg/L 이하',g:1}, {n:'불소',std:'1.5mg/L 이하',g:6},
+  {n:'비소',std:'0.01mg/L 이하',g:1}, {n:'세레늄',std:'0.01mg/L 이하',g:1}, {n:'수은',std:'0.001mg/L 이하',g:1},
+  {n:'시안화합물',l:'시안',std:'0.01mg/L 이하',g:3}, {n:'크롬',std:'0.05mg/L 이하',g:1}, {n:'암모니아성질소(NH3-N)',l:'암모니아성질소',std:'0.5mg/L 이하',g:7},
+  {n:'질산성질소',std:'10mg/L 이하',g:6}, {n:'보론',std:'1.0mg/L 이하',g:1}, {n:'카드뮴',std:'0.005mg/L 이하',g:1},
+  {n:'페놀',std:'0.005mg/L 이하',g:2}, {n:'다이아지논',std:'0.02mg/L 이하',g:0}, {n:'파라티온',std:'0.06mg/L 이하',g:0},
+  {n:'페니트로티온',std:'0.04mg/L 이하',g:0}, {n:'카바릴',std:'0.07mg/L 이하',g:0}, {n:'1,1,1-트리클로로에탄',std:'0.1mg/L 이하',g:4},
+  {n:'테트라클로로에틸렌',std:'0.01mg/L 이하',g:4}, {n:'트리클로로에틸렌',std:'0.03mg/L 이하',g:4}, {n:'디클로로메탄',std:'0.02mg/L 이하',g:4},
+  {n:'벤젠',std:'0.01mg/L 이하',g:4}, {n:'톨루엔',std:'0.7mg/L 이하',g:4}, {n:'에틸벤젠',std:'0.3mg/L 이하',g:4},
+  {n:'크실렌',std:'0.5mg/L 이하',g:4}, {n:'1,1-디클로로에틸렌',std:'0.03mg/L 이하',g:4}, {n:'사염화탄소',std:'0.002mg/L 이하',g:4},
+  {n:'1,2-디브로모-3-클로로프로판',std:'0.003mg/L 이하',g:4}, {n:'경도',std:'1000mg/L 이하',g:6}, {n:'1,4-다이옥산',std:'0.05mg/L 이하',g:4},
+  {n:'과망간산칼륨소비량',std:'10mg/L 이하',g:6}, {n:'동',std:'1.0mg/L 이하',g:1}, {n:'색도',std:'5도 이하',g:6},
+  {n:'세제',std:'0.5mg/L 이하',g:6}, {n:'수소이온농도',std:'5.8-8.5',g:6}, {n:'아연',std:'3.0mg/L 이하',g:1},
+  {n:'염소이온',std:'250mg/L 이하',g:6}, {n:'증발잔류물',std:'500mg/L 이하',g:6}, {n:'철',std:'0.3mg/L 이하',g:1},
+  {n:'망간',std:'0.05mg/L 이하',g:1}, {n:'탁도',std:'0.5 NTU 이하',g:6}, {n:'황산이온',std:'200mg/L 이하',g:6},
+  {n:'알루미늄',std:'0.2mg/L 이하',g:1}];
 const REC_LAWS=['지하수법','먹는물관리법','수도법','식품위생법'];
 const REC_KINDS=['정기검사','허가용','준공용','참고용','재검사'];
 const recNo=r=>`${(r.date||'').replace(/-/g,'')}-${String(r.id).padStart(3,'0')}`;
