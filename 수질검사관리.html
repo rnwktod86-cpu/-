@@ -190,12 +190,12 @@ function seed(){
   return {
     seq:{}, // 연도별 접수 일련번호
     fields:[{id:1,name:'정기검사'},{id:2,name:'참고용'}],
-    purposeV2:1, purposeV3:1, purposeV4:1, typeV2:1,
+    purposeV2:1, purposeV3:1, purposeV4:1, typeV2:1, typeV3:1,
     purposes:[{id:1,name:'정기검사'},{id:2,name:'허가용'},{id:3,name:'준공용'},{id:4,name:'참고용'},{id:5,name:'재검사'},
       {id:6,name:'지하수법'},{id:7,name:'먹는물관리법'},{id:8,name:'수도법'},{id:9,name:'식품위생법'},{id:10,name:'기타'}],
     types:[
       {id:5,fid:1,name:'지하수(음용수)'},{id:6,fid:1,name:'지하수(생활용수)'},
-      {id:7,fid:1,name:'지하수(농-어업용수)'},{id:8,fid:1,name:'저수조'},
+      {id:7,fid:1,name:'지하수(농-어업용수)'},{id:16,fid:1,name:'지하수(공업용수)'},{id:8,fid:1,name:'저수조'},
       {id:9,fid:1,name:'급수관수'},{id:12,fid:1,name:'마을상수도'},
       {id:13,fid:1,name:'학교정수기'},{id:14,fid:1,name:'목욕탕'},
       {id:15,fid:1,name:'친환경인증'}],
@@ -207,7 +207,7 @@ function seed(){
       {id:5,name:'일반세균',unit:'CFU/mL',lo:'',hi:'100'},
       {id:6,name:'총대장균군',unit:'',lo:'',hi:'불검출'}],
     typeItems:{ 5:[1,2,4,6], 6:[1,2,4,6], 7:[1,2,4,6], 8:[1,2,3,6], 9:[1,2,3,6],
-      12:[1,2,3,6], 13:[1,2,3,6], 14:[1,2,3,6], 15:[1,2,4,6] },
+      12:[1,2,3,6], 13:[1,2,3,6], 14:[1,2,3,6], 15:[1,2,4,6], 16:[1,2,4,6] },
     inspectors:[
       {id:1,name:'분석실장'},{id:2,name:'검사원A'},{id:3,name:'검사원B'}],
     clients:[
@@ -233,6 +233,9 @@ function migrate(d){ const sd=seed();
     d.receptions.forEach(r=>{ r.purposeId=9; }); }
   if(!d.purposeV4){ d.purposeV4=1; d.purposes=sd.purposes; // 검사목적: 정기검사~기타 10개 항목으로 교체 (구 법령 id → 새 id)
     const mp={1:6,2:7,3:8,5:9}; d.receptions.concat(d.trash||[]).forEach(r=>{ if(r.purposeId){ r.purposeId=mp[r.purposeId]||10; } }); }
+  if(!d.typeV3){ d.typeV3=1; // 시료종류에 지하수(공업용수) 추가
+    if(!d.types.some(t=>t.name==='지하수(공업용수)')){ const i=d.types.findIndex(t=>t.name==='지하수(농-어업용수)');
+      d.types.splice(i<0?d.types.length:i+1,0,{id:16,fid:1,name:'지하수(공업용수)'}); if(!d.typeItems[16])d.typeItems[16]=[1,2,4,6]; } }
   if(!d.trash)d.trash=[];
   return d; }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); renderDbInfo(); }
@@ -512,8 +515,8 @@ const isEtcPurpose=id=>{ const p=byId(DB.purposes,+id); return !!p&&p.name==='�
 function purposeEtcToggle(){ document.getElementById('f_pe_wrap').style.display=isEtcPurpose(document.getElementById('f_purpose').value)?'':'none'; }
 function testBoxes(sel){
   const cb=(v,es,lbl)=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="f_tchk" value="${esc(v)}" ${sel.includes(v)?'checked':''}> ${esc(lbl||v)}${es?` <span style="font-size:11px;color:var(--muted)">${es}</span>`:''}</label>`;
-  const stdBox=`<div style="grid-column:1/-1;border-bottom:1px dashed var(--line);padding-bottom:4px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">지하수(음용수) 수질기준 항목 <span style="font-weight:400">(냄새·맛은 아래 첫 묶음)</span></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px 12px;padding-left:8px">${STD_ITEMS.map(t=>cb(t.n,t.std,t.l)).join('')}</div></div>`;
+  const stdBox=`<div style="grid-column:1/-1;border-bottom:1px dashed var(--line);padding-bottom:4px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px"><span id="stdHead">지하수(음용수) 수질기준 항목</span> <span style="font-weight:400">(냄새·맛은 아래 첫 묶음)</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px 12px;padding-left:8px">${STD_ITEMS.map(t=>cb(t.n,`<span class="stdv" data-n="${esc(t.n)}">${t.std}</span>`,t.l)).join('')}</div></div>`;
   document.getElementById('f_tests').innerHTML=stdBox+REC_ROWS.map((x,gi)=>({n:x[0],gi})).filter(x=>x.n).map(({n,gi})=>{
     const its=TEST_ITEMS.filter(t=>t.g===gi);
     return its.length? `<div style="grid-column:1/-1;border-bottom:1px dashed var(--line);padding-bottom:4px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">${esc(n)}</div>
@@ -523,12 +526,20 @@ function testBoxes(sel){
 const testRow=(r,gi)=>{ const sel=r.tests||[], n=REC_ROWS[gi][0]; return sel.includes(n)||TEST_ITEMS.concat(STD_ITEMS).some(t=>t.g===gi&&sel.includes(t.n)); };
 /* 시료종류별 기본 검사항목 (시료종류를 고르면 자동 체크 · 필요시 수정 가능). 항목명은 TEST_ITEMS / 분석 항목 줄 이름과 같아야 함 */
 const TYPE_TESTS=()=>({
-  '지하수(음용수)':STD_ITEMS.map(t=>t.n).concat(['냄새','맛'])});
+  '지하수(음용수)':STD_ITEMS.map(t=>t.n).concat(['냄새','맛']),
+  '지하수(생활용수)':Object.keys(USE_STD['지하수(생활용수)']),'지하수(농-어업용수)':Object.keys(USE_STD['지하수(농-어업용수)']),
+  '지하수(공업용수)':Object.keys(USE_STD['지하수(공업용수)'])});
+/* 시료종류에 따라 수질기준 값 표시를 바꿈 (음용수=수질기준표, 그 외 지하수=이용목적별 기준, 해당 없는 항목은 '-') */
+function updateStdLabels(){
+  const t=byId(DB.types,+document.getElementById('f_type').value), nm=t?t.name:'', use=USE_STD[nm];
+  const h=document.getElementById('stdHead'); if(h)h.textContent=use?`${nm} 수질기준 항목`:'지하수(음용수) 수질기준 항목';
+  document.querySelectorAll('.stdv').forEach(e=>{ const base=STD_ITEMS.find(x=>x.n===e.dataset.n);
+    e.textContent=use?(use[e.dataset.n]||'해당 없음'):base.std; e.style.opacity=use&&!use[e.dataset.n]?.5:1; }); }
 function applyDefaultTests(manual){
   const t=byId(DB.types,+document.getElementById('f_type').value), list=t&&TYPE_TESTS()[t.name];
   if(!list){ if(manual)alert('이 시료종류에는 지정된 기본 검사항목이 없습니다'); return; }
   document.querySelectorAll('.f_tchk').forEach(x=>{ if(list.includes(x.value))x.checked=true; }); }
-function autoTests(){ if(!document.querySelector('.f_tchk:checked'))applyDefaultTests(false); }
+function autoTests(){ if(!document.querySelector('.f_tchk:checked'))applyDefaultTests(false); updateStdLabels(); }
 const testsOf=r=>(r.tests||[]).concat(r.testEtc?[r.testEtc]:[]);
 function openRec(id){
   editRecId=id;
@@ -558,7 +569,7 @@ function openRec(id){
     document.getElementById('f_date').value=today(); refreshPurposeType(); document.getElementById('f_purpose_etc').value=''; testBoxes([]); document.getElementById('f_test_etc').value='';
     ['f_client','f_memo','f_permit','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
-  purposeEtcToggle(); document.getElementById('recMask').classList.add('on');
+  purposeEtcToggle(); updateStdLabels(); document.getElementById('recMask').classList.add('on');
 }
 /* 기존고객 검색: 이전 접수건에서 고객을 모아 선택하면 입력칸 자동 채움 */
 function customers(){
@@ -734,6 +745,11 @@ const STD_ITEMS=[ // 지하수(음용수) 수질기준 (n=저장 이름, l=표�
   {n:'염소이온',std:'250mg/L 이하',g:6}, {n:'증발잔류물',std:'500mg/L 이하',g:6}, {n:'철',std:'0.3mg/L 이하',g:1},
   {n:'망간',std:'0.05mg/L 이하',g:1}, {n:'탁도',std:'0.5 NTU 이하',g:6}, {n:'황산이온',std:'200mg/L 이하',g:6},
   {n:'알루미늄',std:'0.2mg/L 이하',g:1}];
+/* 지하수 이용목적별(생활용수·농어업용수·공업용수) 수질기준, mg/L (표에서 '-' 인 항목은 제외) */
+const USE_STD={
+ '지하수(생활용수)':{'수소이온농도':'5.8~8.5','총대장균군':'5,000 이하군수/100mL','질산성질소':'20 이하','염소이온':'250 이하','카드뮴':'0.01 이하','비소':'0.05 이하','시안화합물':'0.01 이하','수은':'0.001 이하','다이아지논':'0.02 이하','파라티온':'0.06 이하','페놀':'0.005 이하','납':'0.1 이하','크롬':'0.05 이하','트리클로로에틸렌':'0.03 이하','테트라클로로에틸렌':'0.01 이하','1,1,1-트리클로로에탄':'0.15 이하','벤젠':'0.015 이하','톨루엔':'1 이하','에틸벤젠':'0.45 이하','크실렌':'0.75 이하'},
+ '지하수(농-어업용수)':{'수소이온농도':'6.0~8.5','질산성질소':'20 이하','염소이온':'250 이하','카드뮴':'0.01 이하','비소':'0.05 이하','시안화합물':'0.01 이하','수은':'0.001 이하','다이아지논':'0.02 이하','파라티온':'0.06 이하','페놀':'0.005 이하','납':'0.1 이하','크롬':'0.05 이하','트리클로로에틸렌':'0.03 이하','테트라클로로에틸렌':'0.01 이하','1,1,1-트리클로로에탄':'0.3 이하'},
+ '지하수(공업용수)':{'수소이온농도':'5.0~9.0','질산성질소':'40 이하','염소이온':'500 이하','카드뮴':'0.02 이하','비소':'0.1 이하','시안화합물':'0.2 이하','수은':'0.001 이하','다이아지논':'0.02 이하','파라티온':'0.06 이하','페놀':'0.01 이하','납':'0.2 이하','크롬':'0.1 이하','트리클로로에틸렌':'0.06 이하','테트라클로로에틸렌':'0.02 이하','1,1,1-트리클로로에탄':'0.5 이하'}};
 const REC_LAWS=['지하수법','먹는물관리법','수도법','식품위생법'];
 const REC_KINDS=['정기검사','허가용','준공용','참고용','재검사'];
 const recNo=r=>`${(r.date||'').replace(/-/g,'')}-${String(r.id).padStart(3,'0')}`;
