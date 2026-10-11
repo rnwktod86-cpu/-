@@ -152,7 +152,7 @@
         <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
         <div class="full"><label class="fld" style="display:flex;align-items:center;gap:8px">검사항목 (채취기록부 분석 항목에 체크 표시됩니다)
             <button type="button" style="margin-left:auto;padding:2px 9px;font-size:12px" onclick="applyDefaultTests(true)" title="선택한 시료종류의 기본 검사항목을 체크합니다">기본 항목 불러오기</button>
-            <button type="button" style="padding:2px 9px;font-size:12px" onclick="document.querySelectorAll('.f_tchk').forEach(x=>x.checked=false)">전체 해제</button></label>
+            <button type="button" style="padding:2px 9px;font-size:12px" onclick="document.querySelectorAll('.f_tchk').forEach(x=>x.checked=false);AUTO_SET=[]">전체 해제</button></label>
           <div id="f_tests" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;border:1px solid #c4ccd6;border-radius:5px;padding:8px 10px"></div>
           <input id="f_test_etc" style="width:100%;margin-top:6px" placeholder="기타 검사항목 (직접 입력)"></div>
         <div class="full"><label class="fld">메모 사항</label><textarea id="f_memo" rows="4" style="width:100%;font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid #c4ccd6;border-radius:5px"></textarea></div>
@@ -535,14 +535,30 @@ function updateStdLabels(){
   const h=document.getElementById('stdHead'); if(h)h.textContent=use?`${nm} 수질기준 항목`:'지하수(음용수) 수질기준 항목';
   document.querySelectorAll('.stdv').forEach(e=>{ const base=STD_ITEMS.find(x=>x.n===e.dataset.n);
     e.textContent=use?(use[e.dataset.n]||'해당 없음'):base.std; e.style.opacity=use&&!use[e.dataset.n]?.5:1; }); }
+let AUTO_SET=[]; // 시료종류 선택으로 자동 체크된 항목 (시료종류를 바꾸면 이 항목만 교체, 직접 체크한 항목은 유지)
+function typeDefaults(){ const t=byId(DB.types,+document.getElementById('f_type').value); return (t&&TYPE_TESTS()[t.name])||null; }
+function setTestChecks(list,on){ document.querySelectorAll('.f_tchk').forEach(x=>{ if(list.includes(x.value))x.checked=on; }); }
+function applyDefaultTests(manual){
+  const list=typeDefaults();
+  if(!list){ if(manual)alert('이 시료종류에는 지정된 기본 검사항목이 없습니다'); return; }
+  setTestChecks(AUTO_SET,false); setTestChecks(list,true); AUTO_SET=list.slice(); }
+function autoTests(){ // 시료종류 변경 시: 이전 자동 체크 해제 → 새 시료종류의 기본 항목 체크
+  setTestChecks(AUTO_SET,false); AUTO_SET=[]; const list=typeDefaults();
+  if(list){ setTestChecks(list,true); AUTO_SET=list.slice(); }
+  updateStdLabels(); }
+/* 시료종류에 따라 수질기준 값 표시를 바꿈 (음용수=수질기준표, 그 외 지하수=이용목적별 기준, 해당 없는 항목은 '-') */
+function updateStdLabels(){
+  const t=byId(DB.types,+document.getElementById('f_type').value), nm=t?t.name:'', use=USE_STD[nm];
+  const h=document.getElementById('stdHead'); if(h)h.textContent=use?`${nm} 수질기준 항목`:'지하수(음용수) 수질기준 항목';
+  document.querySelectorAll('.stdv').forEach(e=>{ const base=STD_ITEMS.find(x=>x.n===e.dataset.n);
+    e.textContent=use?(use[e.dataset.n]||'해당 없음'):base.std; e.style.opacity=use&&!use[e.dataset.n]?.5:1; }); }
 function applyDefaultTests(manual){
   const t=byId(DB.types,+document.getElementById('f_type').value), list=t&&TYPE_TESTS()[t.name];
   if(!list){ if(manual)alert('이 시료종류에는 지정된 기본 검사항목이 없습니다'); return; }
   document.querySelectorAll('.f_tchk').forEach(x=>{ if(list.includes(x.value))x.checked=true; }); }
-function autoTests(){ if(!document.querySelector('.f_tchk:checked'))applyDefaultTests(false); updateStdLabels(); }
 const testsOf=r=>(r.tests||[]).concat(r.testEtc?[r.testEtc]:[]);
 function openRec(id){
-  editRecId=id;
+  editRecId=id; AUTO_SET=[];
   document.getElementById('f_cs').value=''; document.getElementById('f_cs_res').style.display='none';
   document.getElementById('recTitle').textContent = id?'접수 수정':'접수 등록';
   const r = id? byId(DB.receptions,id) : null;
