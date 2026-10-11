@@ -414,7 +414,7 @@ function downloadTemplate(){
   const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','정기검사','지하수(음용수)','','','','','금속류 | 미생물']]);
   ws['!cols']=XHEAD.map(()=>({wch:16})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'접수목록');
   XLSX.writeFile(wb,'접수_업로드양식.xlsx'); }
-function parseTests(txt){ const names=REC_ROWS.map(x=>x[0]).filter(Boolean), tests=[], etc=[];
+function parseTests(txt){ const names=REC_ROWS.map(x=>x[0]).filter(Boolean).concat(TEST_ITEMS.map(t=>t.n)), tests=[], etc=[];
   txt.split('|').map(x=>x.trim()).filter(Boolean).forEach(x=>names.includes(x)?tests.push(x):etc.push(x));
   return {tests,testEtc:etc.join(', ')}; }
 function xlDate(v){
@@ -508,8 +508,15 @@ function refreshPurposeType(){
 }
 const isEtcPurpose=id=>{ const p=byId(DB.purposes,+id); return !!p&&p.name==='기타'; };
 function purposeEtcToggle(){ document.getElementById('f_pe_wrap').style.display=isEtcPurpose(document.getElementById('f_purpose').value)?'':'none'; }
-function testBoxes(sel){ document.getElementById('f_tests').innerHTML=REC_ROWS.filter(x=>x[0]).map((x,i)=>
-  `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="f_tchk" value="${esc(x[0])}" ${sel.includes(x[0])?'checked':''}> ${esc(x[0])}</label>`).join(''); }
+function testBoxes(sel){
+  const cb=(v,es,lbl)=>`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="f_tchk" value="${esc(v)}" ${sel.includes(v)?'checked':''}> ${esc(lbl||v)}${es?` <span style="font-size:11px;color:var(--muted)">${es}</span>`:''}</label>`;
+  document.getElementById('f_tests').innerHTML=REC_ROWS.map((x,gi)=>({n:x[0],gi})).filter(x=>x.n).map(({n,gi})=>{
+    const its=TEST_ITEMS.filter(t=>t.g===gi);
+    return its.length? `<div style="grid-column:1/-1;border-bottom:1px dashed var(--line);padding-bottom:4px"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">${esc(n)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;padding-left:8px">${its.map(t=>cb(t.n,t.es)).join('')}${cb(n,'','그 외 항목 (이 줄 전체)')}</div></div>` : cb(n,''); }).join('')+
+  `<div style="grid-column:1/-1"><div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">방사성 물질 (염지하수 · 채취기록부 '기타'에 표시)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;padding-left:8px">${TEST_ITEMS.filter(t=>t.g<0).map(t=>cb(t.n,t.es)).join('')}</div></div>`; }
+const testRow=(r,gi)=>{ const sel=r.tests||[], n=REC_ROWS[gi][0]; return sel.includes(n)||TEST_ITEMS.some(t=>t.g===gi&&sel.includes(t.n)); };
 const testsOf=r=>(r.tests||[]).concat(r.testEtc?[r.testEtc]:[]);
 function openRec(id){
   editRecId=id;
@@ -680,6 +687,24 @@ const REC_ROWS=[ // [분석항목, [용기/시료량...], [[보존제,첨가량]
   ['할로아세틱, 포름알데히드',['G 250 mL'],[['염화암모늄','250 µL']]],
   ['유기물질',['G 1 L'],[]],
   ['',[''],[]]];
+/* 먹는물수질공정시험기준 항목 (g = 위 REC_ROWS 분석 항목 줄 번호, es = 시험기준 번호) */
+const TEST_ITEMS=[
+  {n:'냄새',es:'ES 05303.1d',g:0},{n:'맛',es:'ES 05304.1d',g:0},
+  {n:'유기인계농약(GC-MS)',es:'ES 05501.1e',g:0},{n:'유기인계농약(GC)',es:'ES 05501.2e',g:0},
+  {n:'유기인계농약(고상추출-GC-MS)',es:'ES 05501.3b',g:0},{n:'유기인계농약(고상추출-GC)',es:'ES 05501.4b',g:0},
+  {n:'유기인계농약(고체상미량추출-GC-MS)',es:'ES 05501.5b',g:0},
+  {n:'수은(냉증기/원자흡수분광법)',es:'ES 05407.1f',g:1},{n:'수은(양극벗김전압전류법)',es:'ES 05407.2e',g:1},
+  {n:'수은(ICP-MS)',es:'ES 05407.3c',g:1},{n:'아연(원자흡수분광광도법)',es:'ES 05408.1d',g:1},
+  {n:'시안(자외선/가시선 분광법)',es:'ES 05352.1f',g:3},{n:'시안(연속흐름법)',es:'ES 05352.2d',g:3},
+  {n:'휘발성유기화합물(퍼지·트랩-GC-MS)',es:'ES 05601.1g',g:4},{n:'휘발성유기화합물(퍼지·트랩-GC)',es:'ES 05601.2f',g:4},
+  {n:'휘발성유기화합물(헤드스페이스-GC)',es:'ES 05601.3f',g:4},{n:'휘발성유기화합물(마이크로용매추출-GC-MS)',es:'ES 05601.4f',g:4},
+  {n:'저온일반세균(평판집락법)',es:'ES 05701.1g',g:5},{n:'중온일반세균(평판집락법)',es:'ES 05702.1f',g:5},
+  {n:'중온일반세균(건조필름법)',es:'ES 05702.2',g:5},{n:'총대장균군(시험관법)',es:'ES 05703.1e',g:5},{n:'총대장균군(막여과법)',es:'ES 05703.2e',g:5},
+  {n:'경도(EDTA 적정법)',es:'ES 05301.1e',g:6},
+  {n:'과망간산칼륨소비량(산성법)',es:'ES 05302.1e',g:6},{n:'과망간산칼륨소비량(알칼리성법·염지하수)',es:'ES 05302.2e',g:6},
+  {n:'불소이온(이온크로마토그래피)',es:'ES 05351.1b',g:6},{n:'불소이온(자외선/가시선 분광법)',es:'ES 05351.2d',g:6},
+  /* g:-1 = 채취기록부에 전용 줄이 없는 항목 → '기타' 칸에 표시 */
+  {n:'세슘(Cs-137)',es:'ES 05801.1',g:-1},{n:'스트론튬(Sr-90)',es:'ES 05802.1',g:-1},{n:'삼중수소',es:'ES 05803.1',g:-1}];
 const REC_LAWS=['지하수법','먹는물관리법','수도법','식품위생법'];
 const REC_KINDS=['정기검사','허가용','준공용','참고용','재검사'];
 const recNo=r=>`${(r.date||'').replace(/-/g,'')}-${String(r.id).padStart(3,'0')}`;
@@ -690,14 +715,14 @@ function samplingForm(r){
   const rd=(r.resv||'').split('-'), who=esc(r.receiver||r.rep||'');
   const rows=REC_ROWS.map(([n,cs,ps],ri)=>{ const k=Math.max(cs.length,ps.length,1), out=[];
     for(let i=0;i<k;i++){ let t='';
-      const on=n?(r.tests||[]).includes(n):false, nm=n;
+      const on=n?testRow(r,ri):false, nm=n, sub=TEST_ITEMS.filter(t=>t.g===ri&&(r.tests||[]).includes(t.n)).map(t=>t.n).join(', ');
       if(i===0) t+=`<td rowspan="${k}" class="ck">${on?'☑':'☐'}</td><td rowspan="${k}">${esc(nm)}</td>`;
       if(cs.length===1){ if(i===0) t+=`<td rowspan="${k}">${esc(cs[0])}</td>`; } else t+=`<td>${esc(cs[i]||'')}</td>`;
       if(ps.length===0){ if(i===0) t+=`<td rowspan="${k}" colspan="2">-</td>`; }
       else if(ps.length===1&&k>1){ if(i===0) t+=`<td rowspan="${k}">☐ ${esc(ps[0][0])}</td><td rowspan="${k}">${esc(ps[0][1])}</td>`; }
       else t+=`<td>${ps[i]?'☐ '+esc(ps[i][0]):''}</td><td>${ps[i]?esc(ps[i][1]):''}</td>`;
       if(ri===0&&i===0) t+=`<td rowspan="${REC_ROWS.reduce((m,x)=>m+Math.max(x[1].length,x[2].length,1),0)}"></td>`;
-      t+=`<td></td>`;
+      t+=`<td style="font-size:8.5px;line-height:1.15">${i===0?esc(sub):''}</td>`;
       out.push(`<tr>${i===0&&ri===0?'<td rowspan="'+REC_ROWS.reduce((m,x)=>m+Math.max(x[1].length,x[2].length,1),0)+'" class="v">시료용기 및<br>시료보존제</td>':''}${t}</tr>`); }
     return out.join(''); }).join('');
   return `<div class="pg"><div class="ttl">시료 채취 기록부</div>
@@ -712,12 +737,12 @@ function samplingForm(r){
    <tr><th>채취장소</th><td colspan="5" class="l">${esc(r.place||'')}</td></tr>
   </table>
   <table class="c">
-   <colgroup><col style="width:9%"><col style="width:4%"><col style="width:20%"><col style="width:13%"><col style="width:19%"><col style="width:12%"><col style="width:12%"><col style="width:11%"></colgroup>
+   <colgroup><col style="width:9%"><col style="width:4%"><col style="width:20%"><col style="width:13%"><col style="width:19%"><col style="width:12%"><col style="width:9%"><col style="width:14%"></colgroup>
    <tr><th colspan="2" style="border-bottom:0"></th><th>분석 항목</th><th>용기/시료량</th><th>보존제 종류</th><th>보존제 첨가량</th><th>첨가 시간</th><th>비고</th></tr>${rows}</table>
   <table class="g4">
    <colgroup><col style="width:13%"><col style="width:52%"><col style="width:13%"><col style="width:22%"></colgroup>
    <tr><th>현장측정값</th><td class="l">pH (　　　) (보정값 : 1.　　　　　 2.　　　　　 3.　　　　　 ) /</td><th>잔류염소</th><td></td></tr>
-   <tr><th>기타</th><td colspan="3" class="l">${esc(r.testEtc||'')}</td></tr>
+   <tr><th>기타</th><td colspan="3" class="l">${esc(TEST_ITEMS.filter(t=>t.g<0&&(r.tests||[]).includes(t.n)).map(t=>t.n).concat(r.testEtc?[r.testEtc]:[]).join(', '))}</td></tr>
    <tr><th>특이사항</th><td colspan="3" style="height:20px"></td></tr>
    <tr><th>시료 운영방법<br>및 운송시간</th><td colspan="3" class="l">4℃가 되도록 아이스팩을 포함한 아이스박스를 이용하여 운반 (운송시간:　　　　　　　　　　　　　　　　　 )</td></tr>
    <tr><th>입금계좌</th><td class="l">(농협) 301-0371-0571-31 예금주: 주식회사 피코테스팅</td><th>검사수수료</th><td style="text-align:right">원</td></tr>
