@@ -690,7 +690,7 @@ function samplingForm(r){
   const rd=(r.resv||'').split('-'), who=esc(r.receiver||r.rep||'');
   const rows=REC_ROWS.map(([n,cs,ps],ri)=>{ const k=Math.max(cs.length,ps.length,1), out=[];
     for(let i=0;i<k;i++){ let t='';
-      const on=n?(r.tests||[]).includes(n):!!r.testEtc, nm=n||r.testEtc||'';
+      const on=n?(r.tests||[]).includes(n):false, nm=n;
       if(i===0) t+=`<td rowspan="${k}" class="ck">${on?'☑':'☐'}</td><td rowspan="${k}">${esc(nm)}</td>`;
       if(cs.length===1){ if(i===0) t+=`<td rowspan="${k}">${esc(cs[0])}</td>`; } else t+=`<td>${esc(cs[i]||'')}</td>`;
       if(ps.length===0){ if(i===0) t+=`<td rowspan="${k}" colspan="2">-</td>`; }
@@ -717,7 +717,7 @@ function samplingForm(r){
   <table class="g4">
    <colgroup><col style="width:13%"><col style="width:52%"><col style="width:13%"><col style="width:22%"></colgroup>
    <tr><th>현장측정값</th><td class="l">pH (　　　) (보정값 : 1.　　　　　 2.　　　　　 3.　　　　　 ) /</td><th>잔류염소</th><td></td></tr>
-   <tr><th>기타</th><td colspan="3"></td></tr>
+   <tr><th>기타</th><td colspan="3" class="l">${esc(r.testEtc||'')}</td></tr>
    <tr><th>특이사항</th><td colspan="3" style="height:20px"></td></tr>
    <tr><th>시료 운영방법<br>및 운송시간</th><td colspan="3" class="l">4℃가 되도록 아이스팩을 포함한 아이스박스를 이용하여 운반 (운송시간:　　　　　　　　　　　　　　　　　 )</td></tr>
    <tr><th>입금계좌</th><td class="l">(농협) 301-0371-0571-31 예금주: 주식회사 피코테스팅</td><th>검사수수료</th><td style="text-align:right">원</td></tr>
