@@ -322,7 +322,7 @@ function renderReception(){
     from.value=d.toISOString().slice(0,10); to.value=today(); }
   const regs=sortRegions([...new Set(DB.receptions.map(regionOf))]);
   const rs=c.querySelector('#q_region');
-  rs.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  rs.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)} (${regCount(g)})</option>`).join('');
   rs.value=regs.includes(RQ.region)?RQ.region:''; RQ.region=rs.value;
   c.querySelector('#q_kw').value=RQ.kw;
   renderRecRows();
@@ -339,7 +339,7 @@ function openFilter(e,k){
   FKEY=k; FVALS=[...new Set(FBASE.map(COLS[k]))].sort();
   const d=document.createElement('div'); d.id='fpop'; d.className='fpop'; d.onclick=ev=>ev.stopPropagation();
   d.innerHTML=`<label class="fall"><input type="checkbox" id="fall" onchange="fAll(this.checked)"> (전체 선택)</label>`+
-    FVALS.map((v,i)=>`<label><input type="checkbox" class="fv" data-i="${i}" ${(!CF[k]||CF[k].has(v))?'checked':''} onchange="fApply()"> ${esc(v)}</label>`).join('');
+    FVALS.map((v,i)=>`<label><input type="checkbox" class="fv" data-i="${i}" ${(!CF[k]||CF[k].has(v))?'checked':''} onchange="fApply()"> ${esc(v)} <span style="color:var(--muted)">(${FBASE.filter(r=>COLS[k](r)===v).length})</span></label>`).join('');
   document.body.appendChild(d);
   const r=e.target.getBoundingClientRect(); d.style.left=(r.left+scrollX)+'px'; d.style.top=(r.bottom+scrollY+4)+'px';
   fSync();
@@ -394,11 +394,12 @@ function regionOf(r){
 }
 /* 지역 목록 정렬: 부산 구·군(중구→기장군 순)을 먼저, 나머지는 가나다순 */
 const regKey=g=>{ const i=g==='부산'?-1:BUSAN_GU.indexOf(g.replace(/^부산 /,'')); return g.startsWith('부산')?'0'+String(i+1).padStart(2,'0'):'1'+g; };
+const regCount=g=>DB.receptions.filter(r=>regionOf(r)===g).length; // 지역별 등록(접수) 건수
 const sortRegions=a=>a.slice().sort((x,y)=>regKey(x).localeCompare(regKey(y)));
 function initExportBar(){
   const regs=sortRegions([...new Set(DB.receptions.map(regionOf))]);
   const sel=document.getElementById('x_region');
-  sel.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  sel.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)} (${regCount(g)})</option>`).join('');
   sel.value=regs.includes(XS.region)?XS.region:'';
   document.getElementById('x_from').value=XS.from; document.getElementById('x_to').value=XS.to;
 }
@@ -703,7 +704,7 @@ function renderCalendar(){
       <button onclick="calMove(1)">다음달 ▶</button>
       <button onclick="calMove(0)">오늘</button>
       <label style="font-size:12px;color:var(--muted);margin-left:8px">지역</label>
-      <select onchange="CAL.region=this.value;renderCalendar()"><option value="">전체 지역</option>${regs.map(g=>`<option value="${esc(g)}" ${g===CAL.region?'selected':''}>${esc(g)}</option>`).join('')}</select>
+      <select onchange="CAL.region=this.value;renderCalendar()"><option value="">전체 지역</option>${regs.map(g=>`<option value="${esc(g)}" ${g===CAL.region?'selected':''}>${esc(g)} (${regCount(g)})</option>`).join('')}</select>
       <label style="font-size:12px;color:var(--muted)">담당자</label>
       <select onchange="CAL.person=this.value;renderCalendar()"><option value="">전체 담당자</option>${people.map(p=>`<option value="${esc(p)}" ${p===CAL.person?'selected':''}>${esc(p)}</option>`).join('')}</select>
       <label style="font-size:12.5px;display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" ${CAL.split?'checked':''} onchange="CAL.split=this.checked;renderCalendar()"> 담당자별 캘린더 분리</label>
@@ -863,6 +864,7 @@ function renderStat(){
   // 시료종류별 접수 건수
   const byType={}; recs.forEach(r=>{ const t=byId(DB.types,r.typeId); const k=t?t.name:'(미지정)';
     byType[k]=(byType[k]||0)+1; });
+  const byReg=sortRegions([...new Set(recs.map(regionOf))]).map(g=>[g,recs.filter(r=>regionOf(r)===g).length]);
   c.innerHTML=`
     <div class="stat">
       <div class="box"><div class="n">${recs.length}</div><div class="l">총 접수건</div></div>
@@ -875,6 +877,12 @@ function renderStat(){
         <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">시료종류별 접수 건수</div>
         <table><tbody>${ Object.keys(byType).length? Object.entries(byType).map(([k,v])=>
           `<tr><td>${k}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
+          : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
+      </div>
+      <div class="card" style="padding:0">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--line)">지역별 접수 건수</div>
+        <table><tbody>${ byReg.length? byReg.map(([k,v])=>
+          `<tr><td>${esc(k)}</td><td style="text-align:right;font-weight:600">${v}</td></tr>`).join('')
           : `<tr><td class="empty">데이터 없음</td></tr>` }</tbody></table>
       </div>
       <div class="card" style="padding:0">
