@@ -320,7 +320,7 @@ function renderReception(){
   const from=c.querySelector('#q_from'), to=c.querySelector('#q_to');
   if(!from.value){ const d=new Date(); d.setDate(d.getDate()-30);
     from.value=d.toISOString().slice(0,10); to.value=today(); }
-  const regs=[...new Set(DB.receptions.map(regionOf))].sort();
+  const regs=sortRegions([...new Set(DB.receptions.map(regionOf))]);
   const rs=c.querySelector('#q_region');
   rs.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
   rs.value=regs.includes(RQ.region)?RQ.region:''; RQ.region=rs.value;
@@ -379,13 +379,24 @@ function renderRecRows(){
 }
 /* 지역별·채수예정일 지정 엑셀 다운로드 (지역은 채수장소 → 의뢰인주소의 시·군·구에서 추출) */
 const XS={region:'',from:'',to:''};
+/* 부산은 구·군 단위로 세분화 ("부산 해운대구"), 그 외 지역은 시·군·구 */
+const BUSAN_GU=['중구','서구','동구','영도구','부산진구','동래구','남구','북구','해운대구','사하구','금정구','강서구','연제구','수영구','사상구','기장군'];
+const BUSAN_ONLY=['영도구','부산진구','동래구','해운대구','사하구','금정구','연제구','수영구','사상구','기장군']; // 부산 말고는 없는 구·군 (주소에 '부산'이 없어도 인식)
 function regionOf(r){
-  const t=((r.place||'').trim()||(r.addr||'').trim()).split(/\s+/).filter(Boolean);
+  const sp=x=>(x||'').trim().split(/\s+/).filter(Boolean), P=sp(r.place), A=sp(r.addr), t=P.length?P:A;
   if(!t.length)return '(지역 미상)';
+  const isBusan=P.concat(A).some(w=>/^부산/.test(w));
+  for(const list of [P,A]){ // 채수장소 → 의뢰인주소 순으로 구·군 찾기
+    const gu=list.find(w=>isBusan?BUSAN_GU.includes(w):BUSAN_ONLY.includes(w));
+    if(gu)return '부산 '+gu; }
+  if(isBusan)return '부산';
   return t.find(w=>/[시군구]$/.test(w)&&w.length>1)||t[0];
 }
+/* 지역 목록 정렬: 부산 구·군(중구→기장군 순)을 먼저, 나머지는 가나다순 */
+const regKey=g=>{ const i=g==='부산'?-1:BUSAN_GU.indexOf(g.replace(/^부산 /,'')); return g.startsWith('부산')?'0'+String(i+1).padStart(2,'0'):'1'+g; };
+const sortRegions=a=>a.slice().sort((x,y)=>regKey(x).localeCompare(regKey(y)));
 function initExportBar(){
-  const regs=[...new Set(DB.receptions.map(regionOf))].sort();
+  const regs=sortRegions([...new Set(DB.receptions.map(regionOf))]);
   const sel=document.getElementById('x_region');
   sel.innerHTML='<option value="">전체 지역</option>'+regs.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
   sel.value=regs.includes(XS.region)?XS.region:'';
@@ -663,7 +674,7 @@ function calGrid(recs,people,mini,person){
   return `<div class="cal">${['일','월','화','수','목','금','토'].map((w,i)=>`<div class="dow ${i===0?'sun':i===6?'sat':''}">${w}</div>`).join('')}${cells}</div>`;
 }
 function renderCalendar(){
-  const regs=[...new Set(DB.receptions.map(regionOf))].sort();
+  const regs=sortRegions([...new Set(DB.receptions.map(regionOf))]);
   if(CAL.region&&!regs.includes(CAL.region))CAL.region='';
   const people=[...new Set(DB.receptions.map(personOf))].filter(p=>p!==NOPERSON).sort();
   if(DB.receptions.some(r=>personOf(r)===NOPERSON))people.push(NOPERSON);
