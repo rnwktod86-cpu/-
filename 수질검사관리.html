@@ -149,7 +149,12 @@
         <div class="full" id="f_pe_wrap" style="display:none"><label class="fld">기타 ( 검사목적 직접 입력 )</label><input id="f_purpose_etc" style="width:100%"></div>
         <div><label class="fld">허가신고번호</label><input id="f_permit"></div>
         <div><label class="fld">채수예정일</label><input type="date" id="f_resv"></div>
-        <div><label class="fld">시료채취자</label><input id="f_sampler"></div>
+        <div><label class="fld">시료채취자(담당자)</label><input id="f_sampler"></div>
+        <div><label class="fld">시료명(검체명)</label><input id="f_sname"></div>
+        <div><label class="fld">기존/신규</label><select id="f_kind"><option value="">(선택)</option><option>신규</option><option>기존</option></select></div>
+        <div><label class="fld">분석비용 (검사수수료, 원)</label><input id="f_fee" inputmode="numeric"></div>
+        <div><label class="fld">지역 <span style="color:var(--muted)">(비우면 주소로 자동 인식)</span></label><input id="f_region"></div>
+        <div class="full"><label class="fld">채수예정 메모 (날짜가 아닌 예정: 예 '12월', '보류')</label><input id="f_resvnote" style="width:100%"></div>
         <div class="full"><label class="fld" style="display:flex;align-items:center;gap:8px">검사항목 (채취기록부 분석 항목에 체크 표시됩니다)
             <button type="button" style="margin-left:auto;padding:2px 9px;font-size:12px" onclick="applyDefaultTests(true)" title="선택한 시료종류의 기본 검사항목을 체크합니다">기본 항목 불러오기</button>
             <button type="button" style="padding:2px 9px;font-size:12px" onclick="document.querySelectorAll('.f_tchk').forEach(x=>x.checked=false);AUTO_SET=[]">전체 해제</button></label>
@@ -385,11 +390,12 @@ const BUSAN_ONLY=['영도구','부산진구','동래구','해운대구','사하�
 function regionOf(r){
   const sp=x=>(x||'').trim().split(/\s+/).filter(Boolean), P=sp(r.place), A=sp(r.addr), t=P.length?P:A;
   if(!t.length)return '(지역 미상)';
-  const isBusan=P.concat(A).some(w=>/^부산/.test(w));
+  const rg=(r.region||'').trim(), isBusan=/^부산/.test(rg)||P.concat(A).some(w=>/^부산/.test(w));
   for(const list of [P,A]){ // 채수장소 → 의뢰인주소 순으로 구·군 찾기
     const gu=list.find(w=>isBusan?BUSAN_GU.includes(w):BUSAN_ONLY.includes(w));
     if(gu)return '부산 '+gu; }
   if(isBusan)return '부산';
+  if(rg)return rg; // 엑셀 '지역' 열 값
   return t.find(w=>/[시군구]$/.test(w)&&w.length>1)||t[0];
 }
 /* 지역 목록 정렬: 부산 구·군(중구→기장군 순)을 먼저, 나머지는 가나다순 */
@@ -426,11 +432,27 @@ function exportXlsx(){
 }
 /* 엑셀 업로드: 첫 행 머리글 이름으로 열을 찾으므로, 위 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음 */
 const XHEAD=['채수예정일','지역','접수일','상호/명칭','대표자','의뢰인','일반전화','팩스','휴대전화','의뢰인주소','채수장소','검사목적','시료종류','허가신고번호','시료채취자','메모','검사항목'];
+/* 업로드 양식 (현재 사용 중인 접수 현황표 형식) */
+const NHEAD=['날짜','지역','이름','관리번호','연락처','검체명','의뢰인주소','채취장소','기존/신규','비고','분석비용','채수 예정일','담당자'];
 function downloadTemplate(){
   if(!window.XLSX)return alert('엑셀 라이브러리를 불러오지 못했습니다 (인터넷 연결 확인)');
-  const ws=XLSX.utils.aoa_to_sheet([XHEAD,[today(),'','','예시상호','홍길동','','','','010-0000-0000','○○시 ○○구 ○○로 1','○○시 ○○구 ○○로 1','정기검사','지하수(음용수)','','','','','금속류 | 미생물']]);
-  ws['!cols']=XHEAD.map(()=>({wch:16})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'접수목록');
+  const d=new Date(), md=`${pad2(d.getMonth()+1)}월 ${pad2(d.getDate())}일`;
+  const ws=XLSX.utils.aoa_to_sheet([NHEAD,[md,'부산','예시아파트 관리사무소','','051-000-0000','저수조','','부산광역시 해운대구 ○○로 1','신규','메모 예시',56980,'12월','홍길동']]);
+  ws['!cols']=[10,8,26,12,18,14,30,34,10,34,10,12,10].map(w=>({wch:w})); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
   XLSX.writeFile(wb,'접수_업로드양식.xlsx'); }
+/* 검체명 → 시료종류 (예: '정수기-4'→학교정수기, '저수조-2'→저수조, '급수관'→급수관수) */
+function mapType(nm){ const t=String(nm||'').replace(/\s+/g,'').replace(/-?\d+대?$/,''), by=n=>DB.types.find(x=>x.name===n);
+  if(!t)return null;
+  const exact=DB.types.find(x=>x.name.replace(/\s+/g,'')===t||t.startsWith(x.name.replace(/\s+/g,''))); if(exact)return exact;
+  if(/정수기/.test(t))return by('학교정수기'); if(/저수조/.test(t))return by('저수조'); if(/급수관/.test(t))return by('급수관수');
+  if(/지하수.*생활/.test(t))return by('지하수(생활용수)'); if(/지하수.*(농|어)/.test(t))return by('지하수(농-어업용수)'); if(/지하수.*공업/.test(t))return by('지하수(공업용수)');
+  if(/음용수|지하수/.test(t))return by('지하수(음용수)'); if(/마을상수도/.test(t))return by('마을상수도'); if(/목욕/.test(t))return by('목욕탕');
+  return null; }
+/* '03월 18일' / 날짜 셀 → YYYY-MM-DD (연도가 없으면 올해, 미래로 너무 앞서면 작년) */
+function koDate(v){ const f=xlDate(v); if(f)return f;
+  const m=String(v==null?'':v).trim().match(/^(\d{1,2})\s*월\s*(\d{1,2})\s*일?/); if(!m)return '';
+  const n=new Date(); let y=n.getFullYear(), dt=new Date(y,+m[1]-1,+m[2]); if(dt-n>60*864e5)y--;
+  return ymd(y,+m[1]-1,+m[2]); }
 function parseTests(txt){ const names=REC_ROWS.map(x=>x[0]).filter(Boolean).concat(TEST_ITEMS.map(t=>t.n),STD_ITEMS.map(t=>t.n)), tests=[], etc=[];
   txt.split('|').map(x=>x.trim()).filter(Boolean).forEach(x=>names.includes(x)?tests.push(x):etc.push(x));
   return {tests,testEtc:etc.join(', ')}; }
@@ -446,8 +468,10 @@ function importXlsx(inp){
   fr.onload=()=>{ try{
     const wb=XLSX.read(fr.result,{type:'array',cellDates:true});
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+    const hn=rows.findIndex(r=>r.some(c=>String(c).trim()==='이름')&&r.some(c=>String(c).trim()==='검체명'));
+    if(hn>=0)return importNew(rows,hn);
     const hi=rows.findIndex(r=>r.some(c=>String(c).trim()==='상호/명칭'));
-    if(hi<0)return alert('첫 행에 "상호/명칭" 머리글이 있는 엑셀 파일이어야 합니다.\n("업로드 양식" 버튼으로 양식을 받을 수 있습니다)');
+    if(hi<0)return alert('첫 행에 "이름"·"검체명" 머리글이 있는 엑셀 파일이어야 합니다.\n("업로드 양식" 버튼으로 양식을 받을 수 있습니다)');
     const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(XHEAD.includes(h)&&!(h in col))col[h]=i; });
     const get=(r,h)=>col[h]==null?'':(r[col[h]]==null?'':r[col[h]]);
     const str=(r,h)=>String(get(r,h)).trim();
@@ -473,7 +497,31 @@ function importXlsx(inp){
   }catch(e){ alert('엑셀 파일을 읽지 못했습니다: '+e.message); } };
   fr.readAsArrayBuffer(f);
 }
-function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정</span>`; }
+/* 새 업로드 양식 (날짜·지역·이름·관리번호·연락처·검체명·의뢰인주소·채취장소·기존/신규·비고·분석비용·채수 예정일·담당자) */
+function importNew(rows,hi){
+  const col={}; rows[hi].forEach((h,i)=>{ h=String(h).trim(); if(NHEAD.includes(h)&&!(h in col))col[h]=i; });
+  const get=(r,h)=>col[h]==null?'':(r[col[h]]==null?'':r[col[h]]);
+  const str=(r,h)=>String(get(r,h)).trim(), one=(r,h)=>str(r,h).replace(/\s*\n\s*/g,' ');
+  let maxId=DB.receptions.reduce((m,x)=>Math.max(m,x.id),0), add=[], skip=0, unk=new Set();
+  rows.slice(hi+1).forEach(r=>{
+    if(!r.some(c=>String(c).trim()!==''))return;
+    if(!str(r,'이름')){ skip++; return; }
+    const sn=one(r,'검체명'), ty=mapType(sn), tid=ty?ty.id:null; if(sn&&!ty)unk.add(sn);
+    const rv=get(r,'채수 예정일'), rd=koDate(rv), tel=str(r,'연락처'), feeS=str(r,'분석비용').replace(/[,\s원]/g,''), kind=str(r,'기존/신규');
+    add.push({id:++maxId,status:'RECEIVED',purposeId:null,typeId:tid,items:(DB.typeItems[tid]||[]).map((iid,i)=>({itemId:iid,meas:'',judge:'',fail:null,inspId:null,order:i})),
+      clientName:one(r,'이름'),date:koDate(get(r,'날짜'))||today(),resv:rd,resvNote:rd?'':str(r,'채수 예정일'),
+      region:str(r,'지역'),sampleName:sn,custKind:(kind==='기존'||kind==='신규')?kind:'',fee:/^\d+(\.\d+)?$/.test(feeS)?+feeS:'',
+      rep:'',receiver:'',tel:/^010/.test(tel)?'':tel,fax:'',mobile:/^010/.test(tel)?tel:'',
+      addr:one(r,'의뢰인주소'),place:one(r,'채취장소'),permit:str(r,'관리번호'),sampler:str(r,'담당자'),memo:str(r,'비고'),tests:[],testEtc:''}); });
+  if(!add.length)return alert('등록할 행이 없습니다 (이름이 비어 있는 행은 제외됩니다)');
+  if(!confirm(`${add.length}건을 접수 목록에 추가합니다.`+(skip?`\n이름이 없어 제외: ${skip}건`:'')
+    +(unk.size?`\n시료종류로 매칭되지 않은 검체명(시료명으로만 저장): ${[...unk].slice(0,8).join(', ')}${unk.size>8?' 외 '+(unk.size-8)+'종':''}`:'')))return;
+  DB.receptions.push(...add); save();
+  const ds=add.map(x=>x.date).sort(), q=document.getElementById('q_from'), t=document.getElementById('q_to');
+  if(q&&ds[0]<q.value)q.value=ds[0]; if(t&&ds[ds.length-1]>t.value)t.value=ds[ds.length-1];
+  renderRecRows(); alert(`${add.length}건 업로드 완료`);
+}
+function schedPill(r){ return r.resv?`<span class="pill p-done">일정 확정 ${r.resv}</span>`:`<span class="pill p-wait">일정 미확정${r.resvNote?' · '+esc(r.resvNote):''}</span>`; }
 function syncSel(){
   document.querySelectorAll('#recBody tr[data-id]').forEach(tr=>{ const on=selIds.has(+tr.dataset.id);
     tr.classList.toggle('sel',on); tr.querySelector('.rowchk').checked=on; });
@@ -581,6 +629,8 @@ function openRec(id){
     document.getElementById('f_type').value=r.typeId||0;
     document.getElementById('f_purpose_etc').value=r.purposeEtc||'';
     testBoxes(r.tests||[]); document.getElementById('f_test_etc').value=r.testEtc||'';
+    document.getElementById('f_sname').value=r.sampleName||''; document.getElementById('f_kind').value=r.custKind||'';
+    document.getElementById('f_fee').value=r.fee===''||r.fee==null?'':r.fee; document.getElementById('f_region').value=r.region||''; document.getElementById('f_resvnote').value=r.resvNote||'';
     document.getElementById('f_client').value=clientName(r);
     document.getElementById('f_place').value=r.place||'';
     document.getElementById('f_addr').value=r.addr||'';
@@ -594,7 +644,7 @@ function openRec(id){
     document.getElementById('f_sampler').value=r.sampler||'';
     document.getElementById('f_receiver').value=r.receiver||'';
   }else{
-    document.getElementById('f_date').value=today(); refreshPurposeType(); document.getElementById('f_purpose_etc').value=''; testBoxes([]); document.getElementById('f_test_etc').value='';
+    document.getElementById('f_date').value=today(); refreshPurposeType(); document.getElementById('f_purpose_etc').value=''; testBoxes([]); document.getElementById('f_test_etc').value=''; ['f_sname','f_kind','f_fee','f_region','f_resvnote'].forEach(x=>document.getElementById(x).value='');
     ['f_client','f_memo','f_permit','f_rep','f_tel','f_fax','f_mobile','f_place','f_addr','f_resv','f_sampler','f_receiver'].forEach(x=>document.getElementById(x).value='');
   }
   purposeEtcToggle(); updateStdLabels(); document.getElementById('recMask').classList.add('on');
@@ -627,7 +677,7 @@ function saveRec(){
   const g=id=>document.getElementById(id).value;
   const typeId=+g('f_type');
   const rec={
-    purposeId:+g('f_purpose')||null, purposeEtc:isEtcPurpose(g('f_purpose'))?g('f_purpose_etc').trim():'', tests:[...document.querySelectorAll('.f_tchk:checked')].map(x=>x.value), testEtc:g('f_test_etc').trim(), typeId:typeId||null,
+    purposeId:+g('f_purpose')||null, purposeEtc:isEtcPurpose(g('f_purpose'))?g('f_purpose_etc').trim():'', tests:[...document.querySelectorAll('.f_tchk:checked')].map(x=>x.value), testEtc:g('f_test_etc').trim(), sampleName:g('f_sname').trim(), custKind:g('f_kind'), fee:/^\d+$/.test(g('f_fee').replace(/[,\s]/g,''))?+g('f_fee').replace(/[,\s]/g,''):'', region:g('f_region').trim(), resvNote:g('f_resvnote').trim(), typeId:typeId||null,
     clientName:g('f_client').trim(), date:g('f_date'),
     place:g('f_place').trim(), addr:g('f_addr').trim(), tel:g('f_tel').trim(), fax:g('f_fax').trim(), mobile:g('f_mobile').trim(), rep:g('f_rep').trim(), memo:g('f_memo').trim(), permit:g('f_permit').trim(), resv:g('f_resv'), sampler:g('f_sampler').trim(), receiver:g('f_receiver').trim()
   };
@@ -806,7 +856,7 @@ function samplingForm(r){
    <tr><th>의뢰인 주소</th><td colspan="5" class="l">${esc(r.addr||'')}</td></tr>
    <tr><th>검사목적/근거</th><td colspan="3" class="l" style="line-height:1.75">${REC_KINDS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${REC_LAWS.map(k=>ck(law===k,k)).join('&nbsp;&nbsp;')}<br>${ck(other,'기타')} ( ${esc(etc)} )</td>
      <th>발송 방법</th><td class="l" style="line-height:1.75"><span style="white-space:nowrap;font-size:10px">☐ 우편 ☐ 문자 ☐ e-mail</span><br>(　　　　　　　　　　　 )</td></tr>
-   <tr><th>시료명</th><td></td><th>시료 종류</th><td>${ty?esc(ty.name):''}<br><span class="s">(□ 현장이중시료)</span></td><th>채수 일자<br><span class="s">(채취 시간)</span></th><td>${rd.length==3?`${rd[0]}.${+rd[1]}.${+rd[2]}`:''}</td></tr>
+   <tr><th>시료명</th><td>${esc(r.sampleName||'')}</td><th>시료 종류</th><td>${ty?esc(ty.name):''}<br><span class="s">(□ 현장이중시료)</span></td><th>채수 일자<br><span class="s">(채취 시간)</span></th><td>${rd.length==3?`${rd[0]}.${+rd[1]}.${+rd[2]}`:''}</td></tr>
    <tr><th>채취장소</th><td colspan="5" class="l">${esc(r.place||'')}</td></tr>
   </table>
   <table class="c">
@@ -818,7 +868,7 @@ function samplingForm(r){
    <tr><th>기타</th><td colspan="3" class="l">${esc(TEST_ITEMS.filter(t=>t.g<0&&(r.tests||[]).includes(t.n)).map(t=>t.n).concat(r.testEtc?[r.testEtc]:[]).join(', '))}</td></tr>
    <tr><th>특이사항</th><td colspan="3" style="height:20px"></td></tr>
    <tr><th>시료 운영방법<br>및 운송시간</th><td colspan="3" class="l">4℃가 되도록 아이스팩을 포함한 아이스박스를 이용하여 운반 (운송시간:　　　　　　　　　　　　　　　　　 )</td></tr>
-   <tr><th>입금계좌</th><td class="l">(농협) 301-0371-0571-31 예금주: 주식회사 피코테스팅</td><th>검사수수료</th><td style="text-align:right">원</td></tr>
+   <tr><th>입금계좌</th><td class="l">(농협) 301-0371-0571-31 예금주: 주식회사 피코테스팅</td><th>검사수수료</th><td style="text-align:right">${r.fee!==''&&r.fee!=null?Number(r.fee).toLocaleString()+' ':''}원</td></tr>
   </table>
   <div class="box"><p style="margin:2px 6px">먹는물수질기준등에관한규칙 제3조, 지하수법제 제20조, 수도법 제33조 규정에 의하여 위와 같이 신청합니다.</p>
    <p style="text-align:center;margin:12px 0 2px;letter-spacing:2px">년　　　　월　　　　일</p>
